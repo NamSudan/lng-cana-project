@@ -191,7 +191,7 @@
   .builder-table td{padding:5px 8px;border-bottom:1px solid var(--border);vertical-align:middle;}
   .builder-table tr.row-parent{background:var(--surface-alt);}
   .col-code{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint);white-space:nowrap;padding-left:12px!important;}
-  .name-input{width:100%;border:1px solid transparent;background:transparent;font-family:var(--font-sans);font-size:13px;padding:6px 8px;border-radius:6px;}
+  .name-input{width:100%;border:1px solid transparent;background:transparent;font-family:var(--font-sans);font-size:13px;padding:6px 8px;border-radius:6px;resize:none;overflow:hidden;display:block;line-height:1.4;}
   .name-input:hover,.name-input:focus{border-color:var(--border);background:var(--surface);}
   .name-parent{font-weight:600;}
   .builder-table input[type=date],.builder-table select{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 6px;font-family:var(--font-sans);font-size:12.5px;background:var(--surface);color:var(--ink);}
@@ -285,7 +285,7 @@
   .modal h3{margin:0 0 14px;font-size:15px;}
   .modal label{display:block;font-size:12px;color:var(--ink-muted);margin:12px 0 5px;}
   .modal input[type=file], .modal textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:var(--font-sans);font-size:13px;}
-  .modal textarea{resize:vertical;min-height:60px;}
+  .modal textarea{resize:none;min-height:60px;overflow:hidden;}
   .qd-meta{font-size:12.5px;color:var(--ink-muted);margin-bottom:6px;}
   .qd-section-label{font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px;}
   .qd-files{display:flex;gap:8px;flex-wrap:wrap;}
@@ -590,7 +590,7 @@
     <label for="ct-file">Ảnh / file minh chứng</label>
     <input type="file" id="ct-file" accept="image/jpeg,image/png,image/webp,application/pdf">
     <label for="ct-note">Ghi chú</label>
-    <textarea id="ct-note" placeholder="Mô tả kết quả thực hiện..."></textarea>
+    <textarea id="ct-note" placeholder="Mô tả kết quả thực hiện..." oninput="autoGrow(this)"></textarea>
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeCreateTicket()">Hủy</button>
       <button class="btn btn-primary" id="ct-submit-btn" onclick="confirmCreateTicket()">Tạo phiếu</button>
@@ -613,7 +613,7 @@
     <div class="qd-comments" id="qd-comments"></div>
 
     <div id="qd-action-area">
-      <textarea id="qd-new-comment" placeholder="Ghi ý kiến hoặc yêu cầu bổ sung..."></textarea>
+      <textarea id="qd-new-comment" placeholder="Ghi ý kiến hoặc yêu cầu bổ sung..." oninput="autoGrow(this)"></textarea>
       <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="addQueueComment()">Gửi ý kiến</button>
       <div class="modal-btns">
         <button class="btn btn-reject" onclick="rejectQueueDetail()">Từ chối</button>
@@ -653,7 +653,7 @@
     <label for="submit-ev-file">Ảnh / file</label>
     <input type="file" id="submit-ev-file" accept="image/jpeg,image/png,image/webp,application/pdf">
     <label for="submit-ev-note">Ghi chú</label>
-    <textarea id="submit-ev-note" placeholder="Đã hoàn thành..., chờ kiểm tra..."></textarea>
+    <textarea id="submit-ev-note" placeholder="Đã hoàn thành..., chờ kiểm tra..." oninput="autoGrow(this)"></textarea>
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeSubmitModal()">Hủy</button>
       <button class="btn btn-primary" id="sm-submit-btn" onclick="confirmSubmitEvidence()">Nộp</button>
@@ -1891,7 +1891,7 @@
     el.innerHTML = roles.map(r=>`
       <div class="queue-item" style="cursor:default">
         <div class="info" style="display:flex;align-items:center;gap:14px">
-          <input type="text" value="${escapeHtml(r.name)}" style="width:170px;border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-family:var(--font-sans);font-size:13px" onchange="adminRenameRole('${r.id}', this.value)">
+          <textarea rows="1" oninput="autoGrow(this)" onkeydown="confirmOnEnter(event)" style="width:170px;border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-family:var(--font-sans);font-size:13px;resize:none;overflow:hidden;line-height:1.4" onchange="adminRenameRole('${r.id}', this.value)">${escapeHtml(r.name)}</textarea>
           <label style="font-weight:normal;font-size:12px;color:var(--ink-muted);cursor:pointer">
             <input type="checkbox" ${r.is_authority_role?'checked':''} onchange="adminToggleAuthorityRole('${r.id}', this.checked)">
             Cần xác nhận thẩm quyền
@@ -1899,6 +1899,7 @@
         </div>
         <button class="mini-btn-text" style="color:var(--red);border-color:var(--red)" onclick="adminDeleteRole('${r.id}','${escapeHtml(r.name)}')">Xóa</button>
       </div>`).join('') || `<div class="baseline-empty">Chưa có vai trò nào.</div>`;
+    document.querySelectorAll('#admin-role-list textarea').forEach(autoGrow);
   }
   async function adminAddRole(){
     const name = prompt('Tên vai trò mới (ví dụ: Kỹ sư trắc đạc):');
@@ -1945,11 +1946,12 @@
     el.innerHTML = allContractors.map(c=>`
       <div class="queue-item" style="cursor:default">
         <div class="info" style="display:flex;align-items:center;gap:10px">
-          <input type="text" value="${escapeHtml(c.name)}" style="width:230px;border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-family:var(--font-sans);font-size:13px" onchange="adminRenameContractor('${c.id}', this.value)">
-          <input type="text" value="${escapeHtml(c.type||'')}" placeholder="loại (vd: Chủ đầu tư, Nhà thầu...)" style="width:190px;border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-family:var(--font-sans);font-size:13px" onchange="adminChangeContractorType('${c.id}', this.value)">
+          <textarea rows="1" oninput="autoGrow(this)" onkeydown="confirmOnEnter(event)" style="width:230px;border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-family:var(--font-sans);font-size:13px;resize:none;overflow:hidden;line-height:1.4" onchange="adminRenameContractor('${c.id}', this.value)">${escapeHtml(c.name)}</textarea>
+          <textarea rows="1" oninput="autoGrow(this)" onkeydown="confirmOnEnter(event)" placeholder="loại (vd: Chủ đầu tư, Nhà thầu...)" style="width:190px;border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-family:var(--font-sans);font-size:13px;resize:none;overflow:hidden;line-height:1.4" onchange="adminChangeContractorType('${c.id}', this.value)">${escapeHtml(c.type||'')}</textarea>
         </div>
         <button class="mini-btn-text" style="color:var(--red);border-color:var(--red)" onclick="adminDeleteContractor('${c.id}','${escapeHtml(c.name)}')">Xóa</button>
       </div>`).join('') || `<div class="baseline-empty">Chưa có đơn vị nào.</div>`;
+    document.querySelectorAll('#admin-contractor-list textarea').forEach(autoGrow);
   }
   async function adminAddContractor(){
     const name = prompt('Tên đơn vị mới:');
@@ -2129,6 +2131,19 @@
   }
   function escapeHtml(s){
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Tự giãn chiều cao textarea theo đúng nội dung đang có — dùng cho mọi ô
+  // nhập chữ có thể dài (tên hạng mục, tên vai trò/đơn vị, ghi chú, ý kiến...).
+  function autoGrow(el){
+    if(!el) return;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+  // Enter để xác nhận (như input 1 dòng cũ) thay vì xuống dòng — dùng cho
+  // các ô thực chất là "tên/nhãn", không phải ô ghi chú nhiều dòng.
+  function confirmOnEnter(e){
+    if(e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
   }
 
   // Khi ngày kết thúc của 1 việc thay đổi, đẩy lịch của mọi việc coi nó
@@ -2526,7 +2541,7 @@
       html += `<tr class="${parent?'row-parent':'row-leaf'}">
         <td class="col-code">${codes[i]}</td>
         <td style="padding-left:${12+t.level*22}px">
-          <input class="name-input ${parent?'name-parent':''}" value="${escapeHtml(t.name)}" onchange="updateName(${i},this.value)">
+          <textarea class="name-input ${parent?'name-parent':''}" rows="1" oninput="autoGrow(this)" onkeydown="confirmOnEnter(event)" onchange="updateName(${i},this.value)">${escapeHtml(t.name)}</textarea>
         </td>
         <td>${assigneeCell}</td>
         <td>${startCell}</td>
@@ -2543,6 +2558,7 @@
       </tr>`;
     });
     document.getElementById('builder-tbody').innerHTML = html;
+    document.querySelectorAll('#builder-tbody .name-input').forEach(autoGrow);
     if(builderViewMode==='gantt') renderGanttInto('builder-gantt-grid');
     renderOverview();
   }
