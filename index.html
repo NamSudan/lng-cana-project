@@ -186,12 +186,17 @@
   .builder-view-toggle button.active{background:var(--surface);color:var(--ink);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.06);}
   .builder-hint{font-size:12.5px;color:var(--ink-muted);}
   .builder-table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow-x:auto;}
-  .builder-table{width:100%;border-collapse:collapse;min-width:1000px;}
+  .builder-table{width:100%;border-collapse:collapse;min-width:900px;}
   .builder-table th{text-align:left;font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.05em;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface-alt);}
   .builder-table td{padding:5px 8px;border-bottom:1px solid var(--border);vertical-align:middle;}
   .builder-table tr.row-parent{background:var(--surface-alt);}
   .col-code{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint);white-space:nowrap;padding-left:12px!important;}
-  .name-input{width:100%;border:1px solid transparent;background:transparent;font-family:var(--font-sans);font-size:13px;padding:6px 8px;border-radius:6px;resize:none;overflow:hidden;display:block;line-height:1.4;}
+  .grow-wrap{display:grid;width:100%;--gw-pad:8px 10px;--gw-fs:13px;--gw-lh:1.45;}
+  .grow-wrap::after{content:attr(data-value) ' ';white-space:pre-wrap;word-break:break-word;visibility:hidden;grid-area:1/1/2/2;padding:var(--gw-pad);font-family:var(--font-sans);font-size:var(--gw-fs);line-height:var(--gw-lh);box-sizing:border-box;border:1px solid transparent;}
+  .grow-wrap>textarea{grid-area:1/1/2/2;resize:none;overflow:hidden;width:100%;box-sizing:border-box;padding:var(--gw-pad);font-family:var(--font-sans);font-size:var(--gw-fs);line-height:var(--gw-lh);}
+  .name-wrap{--gw-pad:6px 8px;--gw-lh:1.4;}
+  .name-wrap.name-parent{font-weight:600;}
+  .name-input{border:1px solid transparent;background:transparent;border-radius:6px;}
   .name-input:hover,.name-input:focus{border-color:var(--border);background:var(--surface);}
   .name-parent{font-weight:600;}
   .builder-table input[type=date],.builder-table select{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 6px;font-family:var(--font-sans);font-size:12.5px;background:var(--surface);color:var(--ink);}
@@ -399,17 +404,17 @@
       <span class="builder-hint" id="baseline-status">Chưa chốt baseline.</span>
     </div>
     <div class="builder-table-wrap" id="builder-table-wrap">
-      <table class="builder-table">
+      <table class="builder-table" style="table-layout:fixed">
         <thead>
           <tr>
-            <th style="width:80px">Mã</th>
+            <th style="width:56px">Mã</th>
             <th>Tên hạng mục / công việc</th>
-            <th style="width:150px">Người phụ trách</th>
-            <th style="width:130px">Bắt đầu</th>
-            <th style="width:130px">Kết thúc</th>
-            <th style="width:170px">Tiền nhiệm</th>
-            <th style="width:110px">% hoàn thành</th>
-            <th style="width:150px">Thao tác</th>
+            <th style="width:128px">Người phụ trách</th>
+            <th style="width:118px">Bắt đầu</th>
+            <th style="width:118px">Kết thúc</th>
+            <th style="width:146px">Tiền nhiệm</th>
+            <th style="width:88px">% hoàn thành</th>
+            <th style="width:165px">Thao tác</th>
           </tr>
         </thead>
         <tbody id="builder-tbody"></tbody>
@@ -1891,7 +1896,9 @@
     el.innerHTML = roles.map(r=>`
       <div class="queue-item" style="cursor:default">
         <div class="info" style="display:flex;align-items:center;gap:14px">
-          <textarea rows="1" oninput="autoGrow(this)" onkeydown="confirmOnEnter(event)" style="width:170px;border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-family:var(--font-sans);font-size:13px;resize:none;overflow:hidden;line-height:1.4" onchange="adminRenameRole('${r.id}', this.value)">${escapeHtml(r.name)}</textarea>
+          <div class="grow-wrap" data-value="${escapeHtml(r.name)}" style="width:170px;display:inline-grid;--gw-pad:6px 9px;--gw-lh:1.4">
+            <textarea rows="1" oninput="growWrap(this)" onkeydown="confirmOnEnter(event)" style="border:1px solid var(--border);border-radius:6px" onchange="adminRenameRole('${r.id}', this.value)">${escapeHtml(r.name)}</textarea>
+          </div>
           <label style="font-weight:normal;font-size:12px;color:var(--ink-muted);cursor:pointer">
             <input type="checkbox" ${r.is_authority_role?'checked':''} onchange="adminToggleAuthorityRole('${r.id}', this.checked)">
             Cần xác nhận thẩm quyền
@@ -1899,7 +1906,6 @@
         </div>
         <button class="mini-btn-text" style="color:var(--red);border-color:var(--red)" onclick="adminDeleteRole('${r.id}','${escapeHtml(r.name)}')">Xóa</button>
       </div>`).join('') || `<div class="baseline-empty">Chưa có vai trò nào.</div>`;
-    document.querySelectorAll('#admin-role-list textarea').forEach(autoGrow);
   }
   async function adminAddRole(){
     const name = prompt('Tên vai trò mới (ví dụ: Kỹ sư trắc đạc):');
@@ -1946,12 +1952,15 @@
     el.innerHTML = allContractors.map(c=>`
       <div class="queue-item" style="cursor:default">
         <div class="info" style="display:flex;align-items:center;gap:10px">
-          <textarea rows="1" oninput="autoGrow(this)" onkeydown="confirmOnEnter(event)" style="width:230px;border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-family:var(--font-sans);font-size:13px;resize:none;overflow:hidden;line-height:1.4" onchange="adminRenameContractor('${c.id}', this.value)">${escapeHtml(c.name)}</textarea>
-          <textarea rows="1" oninput="autoGrow(this)" onkeydown="confirmOnEnter(event)" placeholder="loại (vd: Chủ đầu tư, Nhà thầu...)" style="width:190px;border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-family:var(--font-sans);font-size:13px;resize:none;overflow:hidden;line-height:1.4" onchange="adminChangeContractorType('${c.id}', this.value)">${escapeHtml(c.type||'')}</textarea>
+          <div class="grow-wrap" data-value="${escapeHtml(c.name)}" style="width:230px;display:inline-grid;--gw-pad:6px 9px;--gw-lh:1.4">
+            <textarea rows="1" oninput="growWrap(this)" onkeydown="confirmOnEnter(event)" style="border:1px solid var(--border);border-radius:6px" onchange="adminRenameContractor('${c.id}', this.value)">${escapeHtml(c.name)}</textarea>
+          </div>
+          <div class="grow-wrap" data-value="${escapeHtml(c.type||'')}" style="width:190px;display:inline-grid;--gw-pad:6px 9px;--gw-lh:1.4">
+            <textarea rows="1" oninput="growWrap(this)" onkeydown="confirmOnEnter(event)" placeholder="loại (vd: Chủ đầu tư, Nhà thầu...)" style="border:1px solid var(--border);border-radius:6px" onchange="adminChangeContractorType('${c.id}', this.value)">${escapeHtml(c.type||'')}</textarea>
+          </div>
         </div>
         <button class="mini-btn-text" style="color:var(--red);border-color:var(--red)" onclick="adminDeleteContractor('${c.id}','${escapeHtml(c.name)}')">Xóa</button>
       </div>`).join('') || `<div class="baseline-empty">Chưa có đơn vị nào.</div>`;
-    document.querySelectorAll('#admin-contractor-list textarea').forEach(autoGrow);
   }
   async function adminAddContractor(){
     const name = prompt('Tên đơn vị mới:');
@@ -2133,8 +2142,14 @@
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  // Tự giãn chiều cao textarea theo đúng nội dung đang có — dùng cho mọi ô
-  // nhập chữ có thể dài (tên hạng mục, tên vai trò/đơn vị, ghi chú, ý kiến...).
+  // Cập nhật bản sao (ẩn) nội dung để khung cha (grow-wrap) tự co giãn theo
+  // đúng chiều cao thật — thuần CSS, không cần đo/đợi trình duyệt vẽ xong.
+  function growWrap(el){
+    const wrap = el.parentElement;
+    if(wrap) wrap.dataset.value = el.value;
+  }
+  // Tự giãn chiều cao textarea theo đúng nội dung đang có (dùng cho các ô
+  // ghi chú trong modal, không nằm trong cấu trúc grow-wrap).
   function autoGrow(el){
     if(!el) return;
     el.style.height = 'auto';
@@ -2541,7 +2556,9 @@
       html += `<tr class="${parent?'row-parent':'row-leaf'}">
         <td class="col-code">${codes[i]}</td>
         <td style="padding-left:${12+t.level*22}px">
-          <textarea class="name-input ${parent?'name-parent':''}" rows="1" oninput="autoGrow(this)" onkeydown="confirmOnEnter(event)" onchange="updateName(${i},this.value)">${escapeHtml(t.name)}</textarea>
+          <div class="grow-wrap name-wrap ${parent?'name-parent':''}" data-value="${escapeHtml(t.name)}">
+            <textarea class="name-input" rows="1" oninput="growWrap(this)" onkeydown="confirmOnEnter(event)" onchange="updateName(${i},this.value)">${escapeHtml(t.name)}</textarea>
+          </div>
         </td>
         <td>${assigneeCell}</td>
         <td>${startCell}</td>
@@ -2558,7 +2575,6 @@
       </tr>`;
     });
     document.getElementById('builder-tbody').innerHTML = html;
-    document.querySelectorAll('#builder-tbody .name-input').forEach(autoGrow);
     if(builderViewMode==='gantt') renderGanttInto('builder-gantt-grid');
     renderOverview();
   }
@@ -2855,8 +2871,9 @@
     adminAddContractor, adminAddRole, adminAddWorkspaceMember, adminChangeContractorType, adminChangeRole,
     adminConfirmRole, adminCreateWorkspace, adminDeleteContractor, adminDeletePersonnel, adminDeleteRole,
     adminRemoveWorkspaceMember, adminRenameContractor, adminRenameRole, adminRenameWorkspace, adminDeleteWorkspace, adminToggleAuthorityRole, adminToggleWorkspaceAdmin,
-    clearPercentOverride, closeCreateTicket, closeQueueDetail, closeSubmitModal,
-    confirmCreateTicket, confirmSubmitEvidence, deleteQueueTicket, deleteRow, indentRow, lockBaseline,
+    autoGrow, growWrap, confirmOnEnter,
+    clearPercentOverride, closeCreateTicket, closeQueueDetail, closeSubmitModal, closeSendNotificationModal,
+    confirmCreateTicket, confirmSubmitEvidence, confirmSendScheduleNotifications, deleteQueueTicket, deleteRow, indentRow, lockBaseline,
     openCreateTicket, openQueueDetail, openSubmitModal, outdentRow, rejectQueueDetail, sendScheduleNotifications, switchWorkspace,
     setBuilderView, setQueueFilter, toggleAdminFlag, toggleAdminPermission, toggleCollapse, togglePriority,
     updateAssignee, updateCreateTicketDefaults, updateDate, updateName,
