@@ -1812,7 +1812,13 @@
         </div>`;
       }).join('');
       return `<div class="ws-card">
-        <h4>${escapeHtml(ws.name)}</h4>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <h4>${escapeHtml(ws.name)}</h4>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button class="mini-btn-text" onclick="adminRenameWorkspace('${ws.id}','${escapeHtml(ws.name).replace(/'/g,"\\'")}')">Sửa</button>
+            <button class="mini-btn-text" style="color:var(--red);border-color:var(--red)" onclick="adminDeleteWorkspace('${ws.id}','${escapeHtml(ws.name).replace(/'/g,"\\'")}')">Xóa</button>
+          </div>
+        </div>
         ${memberRows || '<div class="baseline-empty" style="margin-bottom:10px">Chưa có thành viên nào.</div>'}
         <div style="display:flex;gap:8px;margin-top:10px">
           <select id="ws-add-select-${ws.id}" style="flex:1">
@@ -1825,6 +1831,25 @@
     }).join('');
   }
 
+  async function adminRenameWorkspace(projectId, currentName){
+    const name = prompt('Đổi tên workspace:', currentName);
+    if(!name || !name.trim() || name.trim() === currentName) return;
+    const { error } = await supabase.rpc('rename_workspace', { p_project_id: projectId, p_new_name: name.trim() });
+    if(error){ showToast('Lỗi đổi tên: ' + error.message); return; }
+    await loadWorkspacesAdmin();
+    renderAdminWorkspaces();
+    await loadProject(); // cập nhật lại bộ chuyển đổi workspace ở đầu trang luôn
+    showToast('Đã đổi tên workspace');
+  }
+  async function adminDeleteWorkspace(projectId, name){
+    if(!confirm(`Xóa workspace "${name}"? Chỉ xóa được nếu workspace đang rỗng (chưa có công việc/baseline nào).`)) return;
+    const { error } = await supabase.rpc('delete_workspace', { p_project_id: projectId });
+    if(error){ showToast('Không xóa được: ' + error.message); return; }
+    await loadWorkspacesAdmin();
+    renderAdminWorkspaces();
+    await loadProject();
+    showToast('Đã xóa workspace "' + name + '"');
+  }
   async function adminCreateWorkspace(){
     const name = prompt('Tên workspace mới (ví dụ: Phòng pháp lý đấu thầu):');
     if(!name || !name.trim()) return;
