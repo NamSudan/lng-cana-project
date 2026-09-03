@@ -115,6 +115,7 @@
 
   /* critical task rows */
   .task-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-left:3px solid transparent;border-bottom:1px solid var(--border);}
+  .overview-scope-tag{font-size:11.5px;color:var(--ink-muted);background:var(--surface-alt);padding:4px 10px;border-radius:999px;}
   .cw-log-toggle{color:var(--ink-faint);font-size:11px;flex-shrink:0;}
   .cw-log-panel{padding:2px 16px 12px 40px;border-bottom:1px solid var(--border);background:var(--surface-alt);}
   .cw-log-panel.hidden{display:none;}
@@ -301,7 +302,8 @@
   .modal.modal-wide{width:420px;max-height:82vh;overflow-y:auto;}
   .modal h3{margin:0 0 14px;font-size:15px;}
   .modal label{display:block;font-size:12px;color:var(--ink-muted);margin:12px 0 5px;}
-  .modal input[type=file], .modal textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:var(--font-sans);font-size:13px;}
+  .modal input[type=file], .modal textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:var(--font-sans);font-size:13px;box-sizing:border-box;}
+  .modal select, .modal input:not([type=checkbox]):not([type=radio]):not([type=file]){width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:var(--font-sans);font-size:13px;box-sizing:border-box;}
   .modal textarea{resize:none;min-height:60px;overflow:hidden;}
   .qd-meta{font-size:12.5px;color:var(--ink-muted);margin-bottom:6px;}
   .qd-section-label{font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px;}
@@ -446,7 +448,10 @@
 
   <!-- ========== VIEW 1: TỔNG QUAN ========== -->
   <section class="view active" id="view-overview">
-    <h2 class="section-title">Chỉ số tổng thể</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <h2 class="section-title" style="margin:0">Chỉ số tổng thể</h2>
+      <span class="overview-scope-tag" id="overview-scope-tag"></span>
+    </div>
     <div class="kpi-row">
       <div class="kpi-card">
         <svg class="ring" width="48" height="48" viewBox="0 0 48 48">
@@ -467,14 +472,23 @@
       </div>
     </div>
 
-    <div class="panel baseline-panel">
-      <div class="panel-head">So với kế hoạch gốc</div>
-      <div id="baseline-panel-body"></div>
+    <div class="panel" style="margin-top:18px">
+      <div class="panel-head">Công việc trong ngày</div>
+      <div id="current-work-list"></div>
     </div>
 
     <div class="panel" style="margin-top:18px">
-      <div class="panel-head">Công việc đang diễn ra hôm nay</div>
-      <div id="current-work-list"></div>
+      <div class="panel-head">Công việc trong tuần</div>
+      <div id="week-work-list"></div>
+    </div>
+
+    <div class="compare-chart-wrap">
+      <div class="panel-head" style="padding:0 0 12px">Kế hoạch so với thực tế theo hạng mục chính</div>
+      <div class="scurve-legend">
+        <span><i class="legend-dot" style="background:#8A8F87"></i>KH — Kế hoạch (baseline)</span>
+        <span><i class="legend-dot" style="background:#2E6091"></i>TT — Thực tế</span>
+      </div>
+      <div id="compare-chart-body"></div>
     </div>
 
     <div class="cols">
@@ -485,38 +499,8 @@
 
       <div class="panel">
         <div class="panel-head">Hàng chờ duyệt theo cấp</div>
-        <div class="queue-summary">
-          <div class="qs-row">
-            <div class="name">Giám sát</div>
-            <div class="bar-track"><div class="bar-fill" style="width:70%"></div></div>
-            <div class="count">5</div>
-          </div>
-          <div class="qs-row">
-            <div class="name">QA/QC</div>
-            <div class="bar-track"><div class="bar-fill" style="width:40%"></div></div>
-            <div class="count">2</div>
-          </div>
-          <div class="qs-row">
-            <div class="name">An toàn LĐ</div>
-            <div class="bar-track"><div class="bar-fill" style="width:20%"></div></div>
-            <div class="count">1</div>
-          </div>
-          <div class="qs-row">
-            <div class="name">Đại diện CĐT</div>
-            <div class="bar-track"><div class="bar-fill" style="width:0%"></div></div>
-            <div class="count">0</div>
-          </div>
-        </div>
+        <div class="queue-summary" id="queue-summary-list"></div>
       </div>
-    </div>
-
-    <div class="compare-chart-wrap">
-      <div class="panel-head" style="padding:0 0 12px">Kế hoạch so với thực tế theo hạng mục chính</div>
-      <div class="scurve-legend">
-        <span><i class="legend-dot" style="background:#8A8F87"></i>KH — Kế hoạch (baseline)</span>
-        <span><i class="legend-dot" style="background:#2E6091"></i>TT — Thực tế</span>
-      </div>
-      <div id="compare-chart-body"></div>
     </div>
   </section>
 
@@ -566,7 +550,7 @@
   <section class="view" id="view-worklog">
     <h2 class="section-title">Nhật ký công việc</h2>
     <div class="builder-toolbar" style="margin-bottom:14px">
-      <button class="btn btn-primary" onclick="openWorklogModal()">+ Thêm nhật ký</button>
+      <button class="btn btn-primary" onclick="openWorklogModal(document.getElementById('worklog-task-filter').value)">+ Thêm nhật ký</button>
       <select id="worklog-task-filter" onchange="renderWorklogList()" style="max-width:340px">
         <option value="">— Tất cả công việc —</option>
       </select>
@@ -706,7 +690,12 @@
     <label for="wl-due">Hạn hoàn tất (không bắt buộc)</label>
     <input type="date" id="wl-due">
     <label for="wl-status">Trạng thái</label>
-    <input type="text" id="wl-status" placeholder="Đang thực hiện / Hoàn thành / Trễ hạn...">
+    <select id="wl-status">
+      <option value="Chưa thực hiện">Chưa thực hiện</option>
+      <option value="Đang thực hiện" selected>Đang thực hiện</option>
+      <option value="Hoàn thành">Hoàn thành</option>
+      <option value="Trễ hạn">Trễ hạn</option>
+    </select>
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeWorklogModal()">Hủy</button>
       <button class="btn btn-primary" onclick="confirmAddWorklog()">Lưu nhật ký</button>
@@ -1060,6 +1049,7 @@
         : 'Chưa chốt baseline.';
       await loadQueueItems();
       await loadWorklog();
+      await loadMyPermissions();
       renderWorklogTaskOptions();
       renderBuilder();
       renderQueue();
@@ -1744,6 +1734,17 @@
     const { data } = await supabase.from('permission').select('id, code, description').order('code');
     allPermissions = data || [];
   }
+  // Quyền của đúng người đang đăng nhập — dùng để quyết định hiển thị (vd: Tổng quan
+  // xem toàn bộ hay chỉ việc của mình). CỐ Ý không có ngoại lệ cho admin ở đây —
+  // admin cũng phải được tick quyền tương ứng mới xem được, theo đúng yêu cầu.
+  let myPermissionCodes = new Set();
+  async function loadMyPermissions(){
+    const { data } = await supabase.from('personnel_permission')
+      .select('permission:permission_id(code)')
+      .eq('personnel_id', currentPersonnel.id);
+    myPermissionCodes = new Set((data||[]).map(g=>g.permission?.code).filter(Boolean));
+  }
+  function iHavePermission(code){ return myPermissionCodes.has(code); }
   async function loadAdminData(){
     const { data: grants } = await supabase.from('personnel_permission')
       .select('personnel_id, permission:permission_id(code)');
@@ -1765,7 +1766,8 @@
     edit_schedule: 'Sửa lịch trình',
     lock_baseline: 'Chốt baseline',
     approve_ticket: 'Duyệt phiếu',
-    view_all_workspaces: 'Xem toàn bộ workspace'
+    view_all_workspaces: 'Xem toàn bộ workspace',
+    overview_all: 'Tổng quan'
   };
   function permLabel(code){ return PERMISSION_LABELS_VI[code] || code; }
 
@@ -2081,6 +2083,10 @@
     }
     await loadAdminData();
     renderAdmin();
+    if(personnelId === currentPersonnel.id){
+      await loadMyPermissions();
+      renderOverview();
+    }
   }
   async function toggleAdminFlag(personnelId, checked){
     const { error } = await supabase.from('personnel').update({ is_admin: checked }).eq('id', personnelId);
@@ -2411,6 +2417,14 @@
 
   // ---------- % hoàn thành: tự tính theo ngày, cho phép nhập tay đè lên ----------
   function autoPercent(t){
+    // Ưu tiên: nếu việc này đã có nhật ký công việc ghi %, mỗi nhật ký đại diện
+    // cho phần tiến độ TĂNG THÊM trong đợt đó — cộng dồn tất cả lại, tối đa 100%.
+    const logsWithPct = worklogEntries.filter(e=>e.wbs_task_id===t.id && e.percent_at_time!=null);
+    if(logsWithPct.length){
+      const sum = logsWithPct.reduce((s,e)=>s+e.percent_at_time, 0);
+      return Math.min(100, Math.round(sum));
+    }
+
     if(!t.start || !t.end) return 0;
     const today = new Date().toISOString().slice(0,10);
     if(today >= t.end) return 100;
@@ -2609,18 +2623,18 @@
   function computeSPI(){
     if(!baseline) return null;
     const today = new Date().toISOString().slice(0,10);
-    let totalDur=0, plannedDur=0, actualDur=0;
+    let totalW=0, plannedW=0, actualW=0;
     tasks.forEach((t,i)=>{
       if(!isParentRow(i) && baseline[t.id]){
-        const d = leafDuration(t);
-        totalDur += d;
+        const w = getWeight(t);
+        totalW += w;
         const pp = plannedPercentAt(t,today);
-        plannedDur += d*(pp!=null?pp:0)/100;
-        actualDur += d*getPercent(t)/100;
+        plannedW += w*(pp!=null?pp:0)/100;
+        actualW += w*getPercent(t)/100;
       }
     });
-    if(plannedDur<=0) return null;
-    return actualDur/plannedDur;
+    if(plannedW<=0) return null;
+    return actualW/plannedW;
   }
   function baselineFinishDates(){
     if(!baseline) return null;
@@ -2812,24 +2826,6 @@
       card.classList.add(spi>=1?'good':'warn');
     }
   }
-  function renderBaselinePanel(){
-    const el = document.getElementById('baseline-panel-body');
-    const dates = baselineFinishDates();
-    if(!dates){
-      el.innerHTML = `<div class="baseline-empty">Chưa chốt baseline. Bấm "Chốt baseline" trong tab Xây dựng tiến độ để bắt đầu theo dõi độ lệch tiến độ.</div>`;
-      return;
-    }
-    const delta = daysBetween(dates.planned, dates.current);
-    let label, cls;
-    if(delta>0){ label = `Trễ ${delta} ngày so với kế hoạch gốc`; cls='bad'; }
-    else if(delta<0){ label = `Sớm ${-delta} ngày so với kế hoạch gốc`; cls='good'; }
-    else { label = 'Đúng theo kế hoạch gốc'; cls='neutral'; }
-    el.innerHTML = `<div class="baseline-compare">
-      <div class="baseline-pill"><div class="bp-label">Kế hoạch gốc</div><div class="bp-date">${fmtFull(dates.planned)}</div></div>
-      <div class="baseline-arrow"><span class="baseline-delta-tag ${cls}">${label}</span></div>
-      <div class="baseline-pill"><div class="bp-label">Dự kiến hiện tại</div><div class="bp-date">${fmtFull(dates.current)}</div></div>
-    </div>`;
-  }
   // ---------- mức ảnh hưởng: số việc phía sau đang phụ thuộc (trực tiếp + gián tiếp) ----------
   function countDownstream(taskId, visited){
     visited = visited || new Set();
@@ -2843,7 +2839,7 @@
   }
   function renderAttentionList(){
     const codes = computeWbsCodes();
-    const leaves = tasks.map((t,i)=>({t,i})).filter(x=>!isParentRow(x.i) && x.t.end);
+    const leaves = myOverviewTasks(tasks.map((t,i)=>({t,i})).filter(x=>!isParentRow(x.i) && x.t.end));
     leaves.forEach(x=> x.downstream = countDownstream(x.t.id));
     leaves.sort((a,b)=>{
       if(!!a.t.priorityFlag !== !!b.t.priorityFlag) return a.t.priorityFlag ? -1 : 1;
@@ -2863,11 +2859,23 @@
     }).join('') || `<div class="task-row"><div class="info"><div class="meta">Chưa có công việc nào có ngày.</div></div></div>`;
     document.getElementById('attention-list').innerHTML = html;
   }
+  // ---------- cá nhân hóa Tổng quan: mặc định mỗi người chỉ thấy việc của mình,
+  // trừ khi được admin tick quyền "Tổng quan" (kể cả chính admin cũng phải được tick) ----------
+  function canSeeAllOverview(){ return iHavePermission('overview_all'); }
+  function myOverviewTasks(list){
+    if(canSeeAllOverview()) return list;
+    return list.filter(x=>x.t.assignedTo===currentPersonnel.id);
+  }
+  function renderOverviewScopeTag(){
+    const el = document.getElementById('overview-scope-tag');
+    if(!el) return;
+    el.textContent = canSeeAllOverview() ? 'Đang xem: Toàn bộ dự án' : 'Đang xem: Việc của bạn';
+  }
   // ---------- việc đang diễn ra đúng hôm nay ----------
   function renderCurrentWork(){
     const codes = computeWbsCodes();
     const today = new Date().toISOString().slice(0,10);
-    const active = tasks.map((t,i)=>({t,i})).filter(x=>!isParentRow(x.i) && x.t.start && x.t.end && x.t.start<=today && today<=x.t.end);
+    const active = myOverviewTasks(tasks.map((t,i)=>({t,i})).filter(x=>!isParentRow(x.i) && x.t.start && x.t.end && x.t.start<=today && today<=x.t.end));
     const html = active.map(x=>{
       const t=x.t, pct=getPercent(t);
       const entries = worklogEntries.filter(e=>e.wbs_task_id===t.id).slice(0,5);
@@ -2896,22 +2904,71 @@
     panel.classList.toggle('hidden');
     if(arrow) arrow.textContent = (willShow?'▴ ':'▾ ') + arrow.textContent.replace(/^[▾▴]\s*/,'');
   }
+  // ---------- việc rơi vào tuần hiện tại (Thứ 2 → Chủ nhật) ----------
+  function getWeekRange(){
+    const now = new Date();
+    const day = now.getDay(); // 0=CN, 1=T2...6=T7
+    const diffToMonday = (day===0) ? -6 : 1-day;
+    const monday = new Date(now); monday.setDate(now.getDate()+diffToMonday);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+    const iso = d => d.toISOString().slice(0,10);
+    return { start: iso(monday), end: iso(sunday) };
+  }
+  function renderWeekWork(){
+    const codes = computeWbsCodes();
+    const { start: wkStart, end: wkEnd } = getWeekRange();
+    // việc "trong tuần" = khoảng Bắt đầu→Kết thúc của việc có giao với tuần hiện tại
+    const inWeek = myOverviewTasks(tasks.map((t,i)=>({t,i})).filter(x=>{
+      if(isParentRow(x.i) || !x.t.start || !x.t.end) return false;
+      return x.t.start<=wkEnd && x.t.end>=wkStart;
+    }));
+    inWeek.sort((a,b)=> a.t.end < b.t.end ? -1 : (a.t.end > b.t.end ? 1 : 0));
+    const today = new Date().toISOString().slice(0,10);
+    const html = inWeek.map(x=>{
+      const t=x.t, pct=getPercent(t);
+      const overdue = t.end<today && pct<100;
+      return `<div class="task-row ${overdue?'crit-red':''}">
+        <div class="code">${codes[x.i]}</div>
+        <div class="info"><div class="name">${escapeHtml(t.name)}</div><div class="meta">${personName(t.assignedTo)?escapeHtml(personName(t.assignedTo))+' · ':''}${fmt(t.start)} → ${fmt(t.end)}${overdue?' · trễ':''}</div></div>
+        <span class="badge ${pct>=100?'done':overdue?'rejected':'progress'}">${pct}%</span>
+      </div>`;
+    }).join('') || `<div class="task-row"><div class="info"><div class="meta">Không có công việc nào rơi vào tuần này (${fmt(wkStart)} → ${fmt(wkEnd)}).</div></div></div>`;
+    document.getElementById('week-work-list').innerHTML = html;
+  }
+  // ---------- hàng chờ duyệt theo cấp — đọc đúng dữ liệu thật từ queueItems ----------
+  function renderQueueSummary(){
+    const el = document.getElementById('queue-summary-list');
+    if(!el) return;
+    const pending = queueItems.filter(q=>q.status==='pending');
+    const byLevel = {};
+    pending.forEach(q=>{
+      const key = q.level || '—';
+      byLevel[key] = (byLevel[key]||0) + 1;
+    });
+    const levels = Object.keys(byLevel).sort((a,b)=>byLevel[b]-byLevel[a]);
+    const maxCount = levels.length ? byLevel[levels[0]] : 0;
+    el.innerHTML = levels.map(lv=>`<div class="qs-row">
+        <div class="name">${escapeHtml(lv)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${maxCount>0?Math.round(byLevel[lv]/maxCount*100):0}%"></div></div>
+        <div class="count">${byLevel[lv]}</div>
+      </div>`).join('') || `<div class="baseline-empty">Không có phiếu nào đang chờ duyệt.</div>`;
+  }
   // ---------- biểu đồ cột: kế hoạch (baseline) vs thực tế, theo từng hạng mục chính ----------
   function computePlannedRollupPercent(i){
     const [s,e] = getDescendantRange(i);
     const today = new Date().toISOString().slice(0,10);
-    let totalDur=0, doneDur=0, hasBaseline=false;
+    let totalW=0, doneW=0, hasBaseline=false;
     for(let j=s;j<e;j++){
       if(!isParentRow(j) && baseline && baseline[tasks[j].id]){
         hasBaseline = true;
-        const d = leafDuration(tasks[j]);
-        totalDur += d;
+        const w = getWeight(tasks[j]);
+        totalW += w;
         const pp = plannedPercentAt(tasks[j], today);
-        doneDur += d*(pp!=null?pp:0)/100;
+        doneW += w*(pp!=null?pp:0)/100;
       }
     }
-    if(!hasBaseline || totalDur<=0) return null;
-    return Math.round(doneDur/totalDur*100);
+    if(!hasBaseline || totalW<=0) return null;
+    return Math.round(doneW/totalW*100);
   }
   function renderCompareChart(){
     const wrap = document.getElementById('compare-chart-body');
@@ -3015,6 +3072,7 @@
     const modalSel = document.getElementById('wl-task');
     if(modalSel) modalSel.innerHTML = opts || '<option value="">(chưa có công việc nào)</option>';
   }
+  let worklogEditId = null;
   function renderWorklogList(){
     const filterSel = document.getElementById('worklog-task-filter');
     const taskFilter = filterSel ? filterSel.value : '';
@@ -3027,25 +3085,48 @@
       const idx = taskIdxById[e.wbs_task_id];
       const taskLabel = idx!=null ? `${codes[idx]} — ${escapeHtml(tasks[idx].name)}` : '(việc đã bị xóa)';
       const author = personnel.find(p=>p.id===e.created_by);
+      const canEdit = currentPersonnel.is_admin || e.created_by === currentPersonnel.id;
       return `<div class="wl-item">
-        <div class="wl-item-head"><strong>${taskLabel}</strong>${e.status?`<span class="badge pending">${escapeHtml(e.status)}</span>`:''}</div>
+        <div class="wl-item-head">
+          <strong>${taskLabel}</strong>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            ${e.status?`<span class="badge pending">${escapeHtml(e.status)}</span>`:''}
+            ${canEdit?`<button class="mini-btn-text" onclick="openWorklogModal(null,'${e.id}')">Sửa</button><button class="mini-btn-text" style="color:var(--red);border-color:var(--red)" onclick="deleteWorklogEntry('${e.id}')">Xóa</button>`:''}
+          </div>
+        </div>
         <div class="wl-item-meta">${fmtFull(e.log_date)}${e.percent_at_time!=null?' · '+e.percent_at_time+'%':''}${e.due_date?' · Hạn: '+fmtFull(e.due_date):''} · ${author?escapeHtml(author.name):'—'}</div>
         <div class="wl-item-desc">${escapeHtml(e.description||'(không có mô tả)')}</div>
       </div>`;
     }).join('') || `<div class="baseline-empty">Chưa có nhật ký nào${taskFilter?' cho công việc này':''}.</div>`;
   }
-  function openWorklogModal(presetTaskId){
+  function openWorklogModal(presetTaskId, editId){
     renderWorklogTaskOptions();
-    document.getElementById('wl-date').value = new Date().toISOString().slice(0,10);
-    document.getElementById('wl-percent').value = '';
-    document.getElementById('wl-desc').value = '';
-    document.getElementById('wl-due').value = '';
-    document.getElementById('wl-status').value = '';
-    if(presetTaskId) document.getElementById('wl-task').value = presetTaskId;
+    worklogEditId = editId || null;
+    const modalTitle = document.querySelector('#worklog-overlay h3');
+    if(editId){
+      const e = worklogEntries.find(x=>x.id===editId);
+      if(!e){ showToast('Không tìm thấy nhật ký này (có thể đã bị xóa).'); return; }
+      if(modalTitle) modalTitle.textContent = 'Sửa nhật ký công việc';
+      document.getElementById('wl-task').value = e.wbs_task_id;
+      document.getElementById('wl-date').value = e.log_date || '';
+      document.getElementById('wl-percent').value = e.percent_at_time!=null ? e.percent_at_time : '';
+      document.getElementById('wl-desc').value = e.description || '';
+      document.getElementById('wl-due').value = e.due_date || '';
+      document.getElementById('wl-status').value = e.status || 'Đang thực hiện';
+    } else {
+      if(modalTitle) modalTitle.textContent = 'Thêm nhật ký công việc';
+      document.getElementById('wl-date').value = new Date().toISOString().slice(0,10);
+      document.getElementById('wl-percent').value = '';
+      document.getElementById('wl-desc').value = '';
+      document.getElementById('wl-due').value = '';
+      document.getElementById('wl-status').value = 'Đang thực hiện';
+      if(presetTaskId) document.getElementById('wl-task').value = presetTaskId;
+    }
     document.getElementById('worklog-overlay').classList.remove('hidden');
   }
   function closeWorklogModal(){
     document.getElementById('worklog-overlay').classList.add('hidden');
+    worklogEditId = null;
   }
   async function confirmAddWorklog(){
     const taskId = document.getElementById('wl-task').value;
@@ -3057,10 +3138,15 @@
       percent_at_time: pctVal==='' ? null : Math.max(0,Math.min(100,parseInt(pctVal))),
       description: document.getElementById('wl-desc').value.trim() || null,
       due_date: document.getElementById('wl-due').value || null,
-      status: document.getElementById('wl-status').value.trim() || null,
-      created_by: currentPersonnel.id
+      status: document.getElementById('wl-status').value.trim() || null
     };
-    const { error } = await supabase.from('task_progress_log').insert(payload);
+    let error;
+    if(worklogEditId){
+      ({ error } = await supabase.from('task_progress_log').update(payload).eq('id', worklogEditId));
+    } else {
+      payload.created_by = currentPersonnel.id;
+      ({ error } = await supabase.from('task_progress_log').insert(payload));
+    }
     if(error){ showToast('Lỗi lưu nhật ký: ' + error.message); return; }
     closeWorklogModal();
     await loadWorklog();
@@ -3068,6 +3154,16 @@
     renderOverview();
     renderBuilder();
     showToast('Đã lưu nhật ký');
+  }
+  async function deleteWorklogEntry(id){
+    if(!confirm('Xóa dòng nhật ký này? Không thể hoàn tác.')) return;
+    const { error } = await supabase.from('task_progress_log').delete().eq('id', id);
+    if(error){ showToast('Lỗi xóa: ' + error.message); return; }
+    await loadWorklog();
+    renderWorklogList();
+    renderOverview();
+    renderBuilder();
+    showToast('Đã xóa nhật ký');
   }
   function jumpToWorklog(taskId){
     document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
@@ -3082,11 +3178,13 @@
   }
 
   function renderOverview(){
+    renderOverviewScopeTag();
     renderKpis();
-    renderBaselinePanel();
     renderCurrentWork();
+    renderWeekWork();
     renderAttentionList();
     renderCompareChart();
+    renderQueueSummary();
     renderPersonnelBoard();
   }
 
@@ -3099,7 +3197,7 @@
     adminRemoveWorkspaceMember, adminRenameContractor, adminRenameRole, adminRenameWorkspace, adminDeleteWorkspace, adminToggleAuthorityRole, adminToggleWorkspaceAdmin,
     autoGrow, growWrap, confirmOnEnter,
     clearPercentOverride, clearWeightOverride, updateWeight, closeCreateTicket, closeQueueDetail, closeSubmitModal, closeSendNotificationModal,
-    openWorklogModal, closeWorklogModal, confirmAddWorklog, jumpToWorklog, renderWorklogList, toggleCurrentWorkLog,
+    openWorklogModal, closeWorklogModal, confirmAddWorklog, deleteWorklogEntry, jumpToWorklog, renderWorklogList, toggleCurrentWorkLog,
     confirmCreateTicket, confirmSubmitEvidence, confirmSendScheduleNotifications, deleteQueueTicket, deleteRow, indentRow, lockBaseline,
     openCreateTicket, openQueueDetail, openSubmitModal, outdentRow, rejectQueueDetail, sendScheduleNotifications, switchWorkspace,
     setBuilderView, setQueueFilter, toggleAdminFlag, toggleAdminPermission, toggleCollapse, togglePriority,
