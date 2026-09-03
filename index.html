@@ -593,7 +593,7 @@
     <label for="ct-approver">Người duyệt</label>
     <select id="ct-approver"></select>
     <label for="ct-file">Ảnh / file minh chứng</label>
-    <input type="file" id="ct-file" accept="image/jpeg,image/png,image/webp,application/pdf">
+    <input type="file" id="ct-file">
     <label for="ct-note">Ghi chú</label>
     <textarea id="ct-note" placeholder="Mô tả kết quả thực hiện..." oninput="autoGrow(this)"></textarea>
     <div class="modal-btns">
@@ -656,7 +656,7 @@
     <label for="sm-approver">Gửi tới người duyệt</label>
     <select id="sm-approver"></select>
     <label for="submit-ev-file">Ảnh / file</label>
-    <input type="file" id="submit-ev-file" accept="image/jpeg,image/png,image/webp,application/pdf">
+    <input type="file" id="submit-ev-file">
     <label for="submit-ev-note">Ghi chú</label>
     <textarea id="submit-ev-note" placeholder="Đã hoàn thành..., chờ kiểm tra..." oninput="autoGrow(this)"></textarea>
     <div class="modal-btns">
@@ -1305,10 +1305,11 @@
     if(error) throw error;
     return path;
   }
-  function fileTypeFromMime(mime){
+  function fileTypeFromMime(mime, filename){
     if(mime && mime.startsWith('image/')) return 'image';
     if(mime === 'application/pdf') return 'pdf';
-    return 'other';
+    const ext = (filename||'').split('.').pop();
+    return (ext && ext.length<=5 && /^[a-zA-Z0-9]+$/.test(ext)) ? ext.toLowerCase() : 'other';
   }
 
   async function confirmCreateTicket(){
@@ -1334,7 +1335,7 @@
       if(file){
         const path = await uploadEvidenceFile(file, taskId);
         const { error: eAtt } = await supabase.from('evidence_attachment')
-          .insert({ evidence_submission_id: es.id, file_url: path, file_type: fileTypeFromMime(file.type) });
+          .insert({ evidence_submission_id: es.id, file_url: path, file_type: fileTypeFromMime(file.type, file.name) });
         if(eAtt) throw eAtt;
       }
 
@@ -1593,7 +1594,7 @@
       if(file){
         const path = await uploadEvidenceFile(file, submitModalTaskId);
         const { error: eAtt } = await supabase.from('evidence_attachment')
-          .insert({ evidence_submission_id: es.id, file_url: path, file_type: fileTypeFromMime(file.type) });
+          .insert({ evidence_submission_id: es.id, file_url: path, file_type: fileTypeFromMime(file.type, file.name) });
         if(eAtt) throw eAtt;
       }
 
