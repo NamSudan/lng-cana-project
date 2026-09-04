@@ -116,6 +116,22 @@
   /* critical task rows */
   .task-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-left:3px solid transparent;border-bottom:1px solid var(--border);}
   .overview-scope-tag{font-size:11.5px;color:var(--ink-muted);background:var(--surface-alt);padding:4px 10px;border-radius:999px;}
+  .pb-person-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;overflow:hidden;}
+  .pb-person-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface-alt);}
+  .pb-person-head .avatar{width:30px;height:30px;font-size:12px;}
+  .pb-person-name{font-weight:600;font-size:13.5px;flex:1;}
+  .pb-workload-badge{font-size:11.5px;padding:3px 9px;border-radius:999px;background:var(--steel-bg);color:var(--steel);font-weight:600;}
+  .pb-workload-badge.warn{background:var(--red-bg);color:var(--red);}
+  .pb-task-row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border);}
+  .pb-task-row:last-child{border-bottom:none;}
+  .pb-task-row .code{font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);flex-shrink:0;width:34px;}
+  .pb-task-row .pb-task-name{flex:1;font-size:13px;min-width:0;}
+  .pb-task-row .pb-task-name .star{color:var(--amber);margin-right:3px;}
+  .pb-done-toggle{padding:9px 16px;font-size:12px;color:var(--steel);cursor:pointer;text-decoration:underline;background:none;border:none;font-family:var(--font-sans);width:100%;text-align:left;}
+  .pb-done-list.hidden{display:none;}
+  .pb-unassigned-row{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);}
+  .pb-unassigned-row:last-child{border-bottom:none;}
+  .pb-unassigned-row select{max-width:220px;flex-shrink:0;}
   .cw-log-toggle{color:var(--ink-faint);font-size:11px;flex-shrink:0;}
   .cw-log-panel{padding:2px 16px 12px 40px;border-bottom:1px solid var(--border);background:var(--surface-alt);}
   .cw-log-panel.hidden{display:none;}
@@ -392,7 +408,7 @@
     <button class="active" data-view="overview">Tổng quan</button>
     <button data-view="builder">Xây dựng tiến độ</button>
     <button data-view="queue">Hàng chờ duyệt</button>
-    <button data-view="worker">Điều phối nhân sự</button>
+    <button data-view="worker" id="tab-worker-btn" style="display:none">Điều phối nhân sự</button>
     <button data-view="worklog">Nhật ký công việc</button>
     <button data-view="admin" id="tab-admin-btn" style="display:none">Quản trị</button>
   </div>
@@ -523,27 +539,16 @@
 
   <!-- ========== VIEW 3: ĐIỀU PHỐI NHÂN SỰ (board) ========== -->
   <section class="view" id="view-worker">
-    <h2 class="section-title">Điều phối nhân sự — trạng thái công việc theo thời gian thực</h2>
+    <h2 class="section-title">Điều phối nhân sự — khối lượng công việc theo người</h2>
     <div class="builder-hint" style="margin-bottom:12px">Đọc trực tiếp từ dữ liệu tab Xây dựng tiến độ và Hàng chờ duyệt.</div>
     <div class="locked-note" id="board-locked-note"></div>
-    <div class="board">
-      <div class="board-col">
-        <div class="board-col-head"><span>Sẵn sàng</span><span class="count" id="count-ready"></span></div>
-        <div id="board-ready"></div>
-      </div>
-      <div class="board-col">
-        <div class="board-col-head"><span>Đang thực hiện</span><span class="count" id="count-inprogress"></span></div>
-        <div id="board-inprogress"></div>
-      </div>
-      <div class="board-col">
-        <div class="board-col-head"><span>Chờ duyệt</span><span class="count" id="count-pendingapproval"></span></div>
-        <div id="board-pendingapproval"></div>
-      </div>
-      <div class="board-col">
-        <div class="board-col-head"><span>Hoàn thành</span><span class="count" id="count-done"></span></div>
-        <div id="board-done"></div>
-      </div>
+
+    <div class="panel" id="board-unassigned-panel" style="margin-bottom:18px">
+      <div class="panel-head">Chưa phân công <span class="count" id="count-unassigned"></span></div>
+      <div id="board-unassigned"></div>
     </div>
+
+    <div id="board-by-person"></div>
   </section>
 
   <!-- ========== VIEW: NHẬT KÝ CÔNG VIỆC ========== -->
@@ -1050,6 +1055,7 @@
       await loadQueueItems();
       await loadWorklog();
       await loadMyPermissions();
+      document.getElementById('tab-worker-btn').style.display = iHavePermission('worker_board') ? '' : 'none';
       renderWorklogTaskOptions();
       renderBuilder();
       renderQueue();
@@ -1375,8 +1381,10 @@
         .select('id').single();
       if(e1) throw e1;
 
+      let attachmentPath = null, attachmentName = null;
       if(file){
         const path = await uploadEvidenceFile(file, taskId);
+        attachmentPath = path; attachmentName = file.name;
         const { error: eAtt } = await supabase.from('evidence_attachment')
           .insert({ evidence_submission_id: es.id, file_url: path, file_type: fileTypeFromMime(file.type, file.name) });
         if(eAtt) throw eAtt;
@@ -1395,7 +1403,8 @@
           replyTo: submitter?.email || currentPersonnel.email,
           taskCode: codes[idx] || '',
           taskName: idx>=0 ? tasks[idx].name : '',
-          note: note || ''
+          note: note || '',
+          attachmentPath, attachmentName
         }}).catch(()=>{});
       }
 
@@ -1641,8 +1650,10 @@
         .select('id').single();
       if(e1) throw e1;
 
+      let attachmentPath = null, attachmentName = null;
       if(file){
         const path = await uploadEvidenceFile(file, submitModalTaskId);
+        attachmentPath = path; attachmentName = file.name;
         const { error: eAtt } = await supabase.from('evidence_attachment')
           .insert({ evidence_submission_id: es.id, file_url: path, file_type: fileTypeFromMime(file.type, file.name) });
         if(eAtt) throw eAtt;
@@ -1663,7 +1674,8 @@
           replyTo: submitter?.email || currentPersonnel.email,
           taskCode: codes[idx] || '',
           taskName: t.name,
-          note: note || ''
+          note: note || '',
+          attachmentPath, attachmentName
         }}).catch(()=>{});
       }
 
@@ -1767,7 +1779,8 @@
     lock_baseline: 'Chốt baseline',
     approve_ticket: 'Duyệt phiếu',
     view_all_workspaces: 'Xem toàn bộ workspace',
-    overview_all: 'Tổng quan'
+    overview_all: 'Tổng quan',
+    worker_board: 'Điều phối'
   };
   function permLabel(code){ return PERMISSION_LABELS_VI[code] || code; }
 
@@ -2085,6 +2098,7 @@
     renderAdmin();
     if(personnelId === currentPersonnel.id){
       await loadMyPermissions();
+      document.getElementById('tab-worker-btn').style.display = iHavePermission('worker_board') ? '' : 'none';
       renderOverview();
     }
   }
@@ -3009,41 +3023,105 @@
     if(t.start && today < t.start) return 'ready';
     return 'inprogress';
   }
-  function boardCardHtml(x, codes, showSubmitBtn){
-    const t = x.t;
-    const name = personName(t.assignedTo);
-    const label = name ? escapeHtml(name) : 'Chưa gán người phụ trách';
-    const av = name ? initials(name) : '?';
-    const priorityTag = t.priorityFlag ? `<div class="tag-row"><span class="badge rejected">★ Ưu tiên</span></div>` : '';
-    const ticket = taskPendingTicket(codes[x.i]);
-    const approvalTag = ticket ? `<div class="tag-row"><span class="badge pending">Chờ ${ticket.level}${ticket.approverName?' — '+escapeHtml(ticket.approverName):''}</span></div>` : '';
-    const btn = showSubmitBtn ? `<button class="btn btn-primary" style="width:100%;margin-top:8px;font-size:12px;padding:6px" onclick="openSubmitModal('${t.id}')">Nộp minh chứng</button>` : '';
-    return `<div class="board-card ${t.priorityFlag?'is-critical':''}">
-      <div class="person"><span class="avatar">${av}</span><span class="pname">${label}</span></div>
-      <div class="name">${escapeHtml(t.name)}</div>
-      <div class="code">${codes[x.i]}</div>
-      ${priorityTag}${approvalTag}${btn}
+  const BOARD_STATUS_INFO = {
+    locked: { cls:'locked', label:'Đang khóa' },
+    ready: { cls:'ready', label:'Sẵn sàng' },
+    inprogress: { cls:'progress', label:'Đang làm' },
+    pendingapproval: { cls:'pending', label:'Chờ duyệt' },
+    done: { cls:'done', label:'Hoàn thành' }
+  };
+  // 1 dòng việc gọn, dùng bên trong khối của từng người (không lặp lại tên người vì đã có ở đầu khối)
+  function personTaskLineHtml(x, codes){
+    const t = x.t, code = codes[x.i];
+    const status = taskBoardStatus(t, code);
+    const info = BOARD_STATUS_INFO[status];
+    const ticket = taskPendingTicket(code);
+    const submitBtn = status==='inprogress'
+      ? `<button class="mini-btn-text" onclick="openSubmitModal('${t.id}')">Nộp minh chứng</button>` : '';
+    return `<div class="pb-task-row">
+      <div class="code">${code}</div>
+      <div class="pb-task-name">${t.priorityFlag?'<span class="star">★</span>':''}${escapeHtml(t.name)}${ticket?` · <span style="color:var(--ink-faint)">chờ ${escapeHtml(ticket.level)}</span>`:''}</div>
+      <span class="badge ${info.cls}">${info.label}</span>
+      ${submitBtn}
     </div>`;
   }
+  const OVERLOAD_THRESHOLD = 6; // số việc "đang hoạt động" cùng lúc — vượt mốc này thì cảnh báo quá tải
   function renderPersonnelBoard(){
     const codes = computeWbsCodes();
     const leaves = tasks.map((t,i)=>({t,i})).filter(x=>!isParentRow(x.i));
-    const groups = {locked:[], ready:[], inprogress:[], pendingapproval:[], done:[]};
-    leaves.forEach(x=> groups[taskBoardStatus(x.t, codes[x.i])].push(x));
 
-    document.getElementById('board-locked-note').textContent = groups.locked.length
-      ? `Đang khóa, chưa thể bắt đầu: ${groups.locked.length} công việc (đang chờ việc trước hoàn tất)`
+    const lockedCount = leaves.filter(x=>taskBoardStatus(x.t, codes[x.i])==='locked').length;
+    document.getElementById('board-locked-note').textContent = lockedCount
+      ? `Đang khóa, chưa thể bắt đầu: ${lockedCount} công việc (đang chờ việc trước hoàn tất)`
       : 'Không có công việc nào đang bị khóa.';
 
-    document.getElementById('board-ready').innerHTML = groups.ready.map(x=>boardCardHtml(x,codes,false)).join('') || `<div class="board-empty">Không có việc nào.</div>`;
-    document.getElementById('board-inprogress').innerHTML = groups.inprogress.map(x=>boardCardHtml(x,codes,true)).join('') || `<div class="board-empty">Không có việc nào.</div>`;
-    document.getElementById('board-pendingapproval').innerHTML = groups.pendingapproval.map(x=>boardCardHtml(x,codes,false)).join('') || `<div class="board-empty">Không có phiếu nào đang chờ.</div>`;
-    document.getElementById('board-done').innerHTML = groups.done.map(x=>boardCardHtml(x,codes,false)).join('') || `<div class="board-empty">Chưa có việc nào xong.</div>`;
+    // ----- khối "Chưa phân công" -----
+    const unassigned = leaves.filter(x=>!x.t.assignedTo);
+    document.getElementById('count-unassigned').textContent = unassigned.length;
+    document.getElementById('board-unassigned').innerHTML = unassigned.map(x=>{
+      const status = taskBoardStatus(x.t, codes[x.i]);
+      const info = BOARD_STATUS_INFO[status];
+      return `<div class="pb-unassigned-row">
+        <div class="code">${codes[x.i]}</div>
+        <div class="pb-task-name" style="flex:1">${x.t.priorityFlag?'<span class="star">★</span>':''}${escapeHtml(x.t.name)}</div>
+        <span class="badge ${info.cls}">${info.label}</span>
+        <select onchange="reassignFromBoard('${x.t.id}',this.value)">
+          <option value="">— gán người —</option>
+          ${personnel.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}${p.role?' — '+escapeHtml(p.role):''}</option>`).join('')}
+        </select>
+      </div>`;
+    }).join('') || `<div class="baseline-empty">Mọi công việc đều đã có người phụ trách.</div>`;
+    document.getElementById('board-unassigned-panel').style.display = unassigned.length ? '' : 'none';
 
-    document.getElementById('count-ready').textContent = groups.ready.length;
-    document.getElementById('count-inprogress').textContent = groups.inprogress.length;
-    document.getElementById('count-pendingapproval').textContent = groups.pendingapproval.length;
-    document.getElementById('count-done').textContent = groups.done.length;
+    // ----- khối theo từng người, người có nhiều việc "đang hoạt động" nhất lên đầu -----
+    const byPerson = {};
+    leaves.forEach(x=>{
+      if(!x.t.assignedTo) return;
+      (byPerson[x.t.assignedTo] = byPerson[x.t.assignedTo] || []).push(x);
+    });
+    const people = Object.keys(byPerson).map(pid=>{
+      const p = personnel.find(pp=>pp.id===pid);
+      const list = byPerson[pid];
+      const active = list.filter(x=>['ready','inprogress','pendingapproval','locked'].includes(taskBoardStatus(x.t, codes[x.i])));
+      const doneList = list.filter(x=>taskBoardStatus(x.t, codes[x.i])==='done');
+      return { pid, name: p?p.name:'(đã xóa khỏi hệ thống)', active, doneList };
+    }).sort((a,b)=> b.active.length - a.active.length);
+
+    document.getElementById('board-by-person').innerHTML = people.map(person=>{
+      const av = person.name!=='(đã xóa khỏi hệ thống)' ? initials(person.name) : '?';
+      const overloaded = person.active.length > OVERLOAD_THRESHOLD;
+      const activeRows = person.active.length
+        ? person.active.map(x=>personTaskLineHtml(x,codes)).join('')
+        : `<div class="pb-task-row"><div class="pb-task-name" style="color:var(--ink-faint)">Không có việc nào đang hoạt động.</div></div>`;
+      const doneRows = person.doneList.map(x=>personTaskLineHtml(x,codes)).join('');
+      const doneBlock = person.doneList.length ? `
+        <button class="pb-done-toggle" onclick="togglePersonDone('${person.pid}')">▾ ${person.doneList.length} việc đã hoàn thành</button>
+        <div class="pb-done-list hidden" id="pb-done-${person.pid}">${doneRows}</div>` : '';
+      return `<div class="pb-person-card">
+        <div class="pb-person-head">
+          <span class="avatar">${av}</span>
+          <span class="pb-person-name">${escapeHtml(person.name)}</span>
+          <span class="pb-workload-badge ${overloaded?'warn':''}">${person.active.length} đang hoạt động${overloaded?' · quá tải':''}</span>
+        </div>
+        ${activeRows}
+        ${doneBlock}
+      </div>`;
+    }).join('') || `<div class="baseline-empty">Chưa có ai được phân công việc nào.</div>`;
+  }
+  function togglePersonDone(pid){
+    const list = document.getElementById('pb-done-'+pid);
+    if(!list) return;
+    const btn = list.previousElementSibling;
+    const willShow = list.classList.contains('hidden');
+    list.classList.toggle('hidden');
+    if(btn) btn.textContent = (willShow?'▴ ':'▾ ') + btn.textContent.replace(/^[▾▴]\s*/,'');
+  }
+  async function reassignFromBoard(taskId, personnelId){
+    const { error } = await supabase.rpc('reassign_task', { p_task_id: taskId, p_personnel_id: personnelId||null });
+    if(error){ showToast('Lỗi gán việc: ' + error.message); return; }
+    await loadPersonnelList();
+    await reloadAndRender();
+    showToast('Đã gán việc');
   }
 
   // ---------- Nhật ký công việc ----------
@@ -3197,7 +3275,7 @@
     adminRemoveWorkspaceMember, adminRenameContractor, adminRenameRole, adminRenameWorkspace, adminDeleteWorkspace, adminToggleAuthorityRole, adminToggleWorkspaceAdmin,
     autoGrow, growWrap, confirmOnEnter,
     clearPercentOverride, clearWeightOverride, updateWeight, closeCreateTicket, closeQueueDetail, closeSubmitModal, closeSendNotificationModal,
-    openWorklogModal, closeWorklogModal, confirmAddWorklog, deleteWorklogEntry, jumpToWorklog, renderWorklogList, toggleCurrentWorkLog,
+    openWorklogModal, closeWorklogModal, confirmAddWorklog, deleteWorklogEntry, jumpToWorklog, renderWorklogList, toggleCurrentWorkLog, togglePersonDone, reassignFromBoard,
     confirmCreateTicket, confirmSubmitEvidence, confirmSendScheduleNotifications, deleteQueueTicket, deleteRow, indentRow, lockBaseline,
     openCreateTicket, openQueueDetail, openSubmitModal, outdentRow, rejectQueueDetail, sendScheduleNotifications, switchWorkspace,
     setBuilderView, setQueueFilter, toggleAdminFlag, toggleAdminPermission, toggleCollapse, togglePriority,
