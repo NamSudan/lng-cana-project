@@ -427,7 +427,7 @@
     <div class="builder-toolbar">
       <button class="btn btn-primary" onclick="addRootTask()">+ Thêm hạng mục</button>
       <button class="btn btn-ghost" onclick="lockBaseline()">Chốt baseline</button>
-      <button class="btn btn-ghost" id="send-notification-btn" onclick="sendScheduleNotifications()">Gửi thông báo lịch trình</button>
+      <button class="btn btn-ghost" id="send-notification-btn" onclick="sendScheduleNotifications()">Gửi tiến độ công việc</button>
       <div class="builder-view-toggle">
         <button class="active" data-mode="table" onclick="setBuilderView('table')">Xem bảng</button>
         <button data-mode="gantt" onclick="setBuilderView('gantt')">Xem Gantt</button>
@@ -710,7 +710,7 @@
 
 <div class="modal-overlay hidden" id="send-notification-overlay">
   <div class="modal">
-    <h3>Gửi thông báo lịch trình</h3>
+    <h3>Gửi tiến độ công việc</h3>
     <div class="qd-meta" id="sn-summary"></div>
     <label for="sn-sender-name">Tên hiển thị của bạn trong email</label>
     <input type="text" id="sn-sender-name" maxlength="80" placeholder="Tên hiển thị...">
