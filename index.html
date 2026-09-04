@@ -1354,6 +1354,25 @@
     if(error) throw error;
     return path;
   }
+  // Gửi email thông báo phiếu duyệt — không chặn luồng chính (phiếu vẫn tạo/duyệt
+  // được dù email lỗi), nhưng LUÔN báo kết quả thật ra toast, không nuốt lỗi âm thầm nữa.
+  function sendApprovalEmail(payload){
+    supabase.functions.invoke('send-approval-notification', { body: payload }).then(async ({data, error})=>{
+      if(error){
+        let detail = error.message || String(error);
+        // Lỗi non-2xx của supabase-js không tự kèm nội dung thật — phải tự đọc response gốc
+        if(error.context && typeof error.context.json === 'function'){
+          try { const body = await error.context.json(); if(body?.error) detail = body.error; } catch(_e){}
+        }
+        showToast('Gửi email thất bại: ' + detail);
+        return;
+      }
+      if(data?.error){ showToast('Gửi email thất bại: ' + data.error); return; }
+      showToast('Đã gửi email thông báo' + (data?.attached ? ' (kèm file đính kèm)' : ''));
+    }).catch(e=>{
+      showToast('Gửi email thất bại: ' + (e.message||e));
+    });
+  }
   function fileTypeFromMime(mime, filename){
     if(mime && mime.startsWith('image/')) return 'image';
     if(mime === 'application/pdf') return 'pdf';
@@ -1395,7 +1414,7 @@
       if(e2) throw e2;
 
       if(approver?.email){
-        supabase.functions.invoke('send-approval-notification', { body: {
+        sendApprovalEmail({
           kind: 'created',
           recipientEmail: approver.email,
           recipientName: approver.name,
@@ -1405,7 +1424,7 @@
           taskName: idx>=0 ? tasks[idx].name : '',
           note: note || '',
           attachmentPath, attachmentName
-        }}).catch(()=>{});
+        });
       }
 
       closeCreateTicket();
@@ -1552,7 +1571,7 @@
     if(q){
       const submitter = personnel.find(p=>p.id===q.submittedById);
       if(submitter?.email){
-        supabase.functions.invoke('send-approval-notification', { body: {
+        sendApprovalEmail({
           kind: 'decided',
           recipientEmail: submitter.email,
           recipientName: submitter.name,
@@ -1561,7 +1580,7 @@
           taskCode: q.taskCode,
           taskName: q.taskName,
           decision: 'approved'
-        }}).catch(()=>{});
+        });
       }
     }
 
@@ -1590,7 +1609,7 @@
     if(q){
       const submitter = personnel.find(p=>p.id===q.submittedById);
       if(submitter?.email){
-        supabase.functions.invoke('send-approval-notification', { body: {
+        sendApprovalEmail({
           kind: 'decided',
           recipientEmail: submitter.email,
           recipientName: submitter.name,
@@ -1600,7 +1619,7 @@
           taskName: q.taskName,
           decision: 'rejected',
           reason
-        }}).catch(()=>{});
+        });
       }
     }
 
@@ -1666,7 +1685,7 @@
       if(approver?.email){
         const submitter = personnel.find(p=>p.id===submitterId);
         const codes = computeWbsCodes();
-        supabase.functions.invoke('send-approval-notification', { body: {
+        sendApprovalEmail({
           kind: 'created',
           recipientEmail: approver.email,
           recipientName: approver.name,
@@ -1676,7 +1695,7 @@
           taskName: t.name,
           note: note || '',
           attachmentPath, attachmentName
-        }}).catch(()=>{});
+        });
       }
 
       closeSubmitModal();
