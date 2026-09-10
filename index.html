@@ -2618,8 +2618,10 @@
         if(pInList) pInList.senderDisplayName = newName;
       }
 
+      const department = (currentWorkspaces.find(w=>w.id===PROJECT_ID)?.name) || '';
       const { data, error } = await supabase.functions.invoke('send-schedule-notification', {
         body: {
+          department,
           recipients: recipients.map(r=>({
             email: r.email,
             name: r.name,
