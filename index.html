@@ -83,9 +83,27 @@
   .rt-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#6B7684;margin-right:5px;vertical-align:middle;}
   .rt-dot.connected{background:#4ADE80;box-shadow:0 0 4px #4ADE80;}
   .rt-dot.disconnected{background:#F87171;}
-  .tabs{display:flex;gap:4px;background:#26313E;padding:4px;border-radius:999px;}
+  .tabs{display:flex;gap:4px;background:#26313E;padding:4px;border-radius:999px;align-items:center;}
   .tabs button{appearance:none;border:none;background:transparent;color:#B7C0C9;font-family:var(--font-sans);font-size:13px;font-weight:500;padding:8px 16px;border-radius:999px;cursor:pointer;}
   .tabs button.active{background:#F2F3EF;color:var(--steel-dark);}
+
+  /* ---------- nút nổi mở menu chức năng ---------- */
+  .nav-fab{position:fixed;right:24px;bottom:24px;width:52px;height:52px;border-radius:50%;background:var(--steel);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:55;box-shadow:0 2px 10px rgba(0,0,0,.25);}
+  .nav-fab:hover{background:var(--steel-dark);}
+  .nav-fab .nav-menu-icon{color:#fff;font-size:20px;line-height:1;}
+  @media (max-width:480px){ .nav-fab{right:16px;bottom:16px;width:48px;height:48px;} .nav-fab .nav-menu-icon{font-size:18px;} }
+
+  /* ---------- sidebar menu chức năng ---------- */
+  .nav-backdrop{position:fixed;inset:0;background:rgba(15,20,25,.45);opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:60;}
+  .nav-backdrop.open{opacity:1;pointer-events:auto;}
+  .nav-sidebar{position:fixed;top:0;left:0;bottom:0;width:280px;max-width:82vw;background:var(--surface);border-right:1px solid var(--border);box-shadow:2px 0 18px rgba(0,0,0,.14);transform:translateX(-100%);transition:transform .22s ease;z-index:61;display:flex;flex-direction:column;padding:10px;overflow-y:auto;}
+  .nav-sidebar.open{transform:translateX(0);}
+  .nav-sidebar-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px 14px;font-size:12px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;}
+  .nav-sidebar-close{appearance:none;border:none;background:transparent;color:var(--ink-muted);font-size:16px;cursor:pointer;padding:4px 8px;border-radius:6px;}
+  .nav-sidebar-close:hover{background:var(--surface-alt);}
+  .nav-sidebar button.view-nav-btn{display:block;width:100%;text-align:left;appearance:none;border:none;background:transparent;color:var(--ink);font-family:var(--font-sans);font-size:13.5px;font-weight:500;padding:11px 12px;border-radius:8px;cursor:pointer;margin-bottom:2px;}
+  .nav-sidebar button.view-nav-btn:hover{background:var(--surface-alt);}
+  .nav-sidebar button.view-nav-btn.active{background:var(--steel-bg);color:var(--steel);}
   #workspace-switcher{background:#2A343E;border:1px solid #3A4855;color:#F2F3EF;font-family:var(--font-sans);font-size:12.5px;padding:6px 10px;border-radius:8px;margin-right:10px;}
   .ws-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;}
   .ws-card h4{margin:0 0 10px;font-size:13.5px;}
@@ -405,19 +423,32 @@
   </div>
   <select id="workspace-switcher" onchange="switchWorkspace(this.value)" style="display:none"></select>
   <div class="tabs">
-    <button class="active" data-view="overview">Tổng quan</button>
-    <button data-view="builder">Xây dựng tiến độ</button>
-    <button data-view="queue">Hàng chờ duyệt</button>
-    <button data-view="worker" id="tab-worker-btn" style="display:none">Điều phối nhân sự</button>
-    <button data-view="worklog">Nhật ký công việc</button>
-    <button data-view="admin" id="tab-admin-btn" style="display:none">Quản trị</button>
+    <button class="view-nav-btn active" data-view="overview">Tổng quan</button>
   </div>
   <div class="user-badge">
     <span id="current-user-name"></span>
+    <button onclick="openQuickLogLinkModal()">Link ghi chú nhanh</button>
     <button onclick="openSetPinModal()">Đặt PIN</button>
     <button onclick="authSignOut()">Đăng xuất</button>
   </div>
 </header>
+
+<button class="nav-fab" id="nav-menu-btn" onclick="toggleSidebar()" aria-label="Mở menu chức năng" aria-expanded="false" aria-controls="nav-sidebar">
+  <span class="nav-menu-icon">☰</span>
+</button>
+
+<div class="nav-backdrop" id="nav-backdrop" onclick="closeSidebar()"></div>
+<nav class="nav-sidebar" id="nav-sidebar" aria-label="Menu chức năng">
+  <div class="nav-sidebar-head">
+    <span>Chức năng</span>
+    <button class="nav-sidebar-close" onclick="closeSidebar()" aria-label="Đóng menu">✕</button>
+  </div>
+  <button class="view-nav-btn" data-view="builder">Xây dựng tiến độ</button>
+  <button class="view-nav-btn" data-view="queue">Hàng chờ duyệt</button>
+  <button class="view-nav-btn" data-view="worker" id="tab-worker-btn" style="display:none">Điều phối nhân sự</button>
+  <button class="view-nav-btn" data-view="worklog">Nhật ký công việc</button>
+  <button class="view-nav-btn" data-view="admin" id="tab-admin-btn" style="display:none">Quản trị</button>
+</nav>
 
 <main>
 
@@ -681,6 +712,18 @@
   </div>
 </div>
 
+<div class="modal-overlay hidden" id="quicklog-link-overlay">
+  <div class="modal">
+    <h3>Link ghi chú nhanh</h3>
+    <p style="font-size:13px;color:var(--ink-muted);margin:0 0 12px;">Mở link này trên điện thoại, ghim ra màn hình chính — lần sau bấm vào là ghi chú thẳng, không cần đăng nhập lại.</p>
+    <input type="text" id="quicklog-link-input" readonly style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:var(--font-mono);font-size:12.5px;background:var(--surface-alt);color:var(--ink);">
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeQuickLogLinkModal()">Đóng</button>
+      <button class="btn btn-primary" onclick="copyQuickLogLink()">Copy link</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="worklog-overlay">
   <div class="modal">
     <h3>Thêm nhật ký công việc</h3>
@@ -688,8 +731,6 @@
     <select id="wl-task"></select>
     <label for="wl-date">Ngày ghi nhận</label>
     <input type="date" id="wl-date">
-    <label for="wl-percent">% tại thời điểm này</label>
-    <input type="number" id="wl-percent" min="0" max="100">
     <label for="wl-desc">Kết quả cụ thể</label>
     <textarea id="wl-desc" placeholder="Đã làm được gì trong tuần này..." oninput="autoGrow(this)"></textarea>
     <label for="wl-due">Hạn hoàn tất (không bắt buộc)</label>
@@ -903,6 +944,43 @@
   };
   window.closeSetPinModal = function(){
     document.getElementById('set-pin-overlay').classList.add('hidden');
+  };
+
+  // ---------- link ghi chú nhanh (token cá nhân, không cần đăng nhập) ----------
+  window.openQuickLogLinkModal = async function(){
+    const input = document.getElementById('quicklog-link-input');
+    input.value = 'Đang tạo link...';
+    document.getElementById('quicklog-link-overlay').classList.remove('hidden');
+
+    const { data: existing } = await supabase
+      .from('quick_log_tokens')
+      .select('id')
+      .eq('personnel_id', currentPersonnel.id)
+      .eq('revoked', false)
+      .maybeSingle();
+
+    let tokenId = existing?.id;
+    if(!tokenId){
+      const { data: created, error } = await supabase
+        .from('quick_log_tokens')
+        .insert({ personnel_id: currentPersonnel.id })
+        .select('id')
+        .single();
+      if(error){ input.value = 'Không tạo được link: ' + error.message; return; }
+      tokenId = created.id;
+    }
+
+    input.value = `${location.origin}/ghi-chu.html?t=${tokenId}`;
+  };
+  window.closeQuickLogLinkModal = function(){
+    document.getElementById('quicklog-link-overlay').classList.add('hidden');
+  };
+  window.copyQuickLogLink = function(){
+    const input = document.getElementById('quicklog-link-input');
+    input.select();
+    input.setSelectionRange(0, 99999);
+    if(navigator.clipboard) navigator.clipboard.writeText(input.value);
+    else document.execCommand('copy');
   };
   window.confirmSetPin = async function(){
     const pin1 = document.getElementById('pin-input-1').value.trim();
@@ -1253,12 +1331,39 @@
     if(session) supabase.realtime.setAuth(session.access_token);
   });
 
-  document.querySelectorAll('.tabs button').forEach(btn=>{
+  // ---------- điều hướng: nút "Tổng quan" cố định + sidebar chứa các tab còn lại ----------
+  const VIEW_LABELS_VI = {
+    overview: 'Tổng quan', builder: 'Xây dựng tiến độ', queue: 'Hàng chờ duyệt',
+    worker: 'Điều phối nhân sự', worklog: 'Nhật ký công việc', admin: 'Quản trị'
+  };
+  function activateView(viewName){
+    document.querySelectorAll('.view-nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===viewName));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    const target = document.getElementById('view-'+viewName);
+    if(target) target.classList.add('active');
+    const label = document.getElementById('current-view-label');
+    if(label) label.textContent = viewName==='overview' ? '' : (VIEW_LABELS_VI[viewName] || '');
+  }
+  function openSidebar(){
+    document.getElementById('nav-sidebar').classList.add('open');
+    document.getElementById('nav-backdrop').classList.add('open');
+    document.getElementById('nav-menu-btn').setAttribute('aria-expanded','true');
+  }
+  function closeSidebar(){
+    document.getElementById('nav-sidebar').classList.remove('open');
+    document.getElementById('nav-backdrop').classList.remove('open');
+    document.getElementById('nav-menu-btn').setAttribute('aria-expanded','false');
+  }
+  function toggleSidebar(){
+    document.getElementById('nav-sidebar').classList.contains('open') ? closeSidebar() : openSidebar();
+  }
+  document.addEventListener('keydown', e=>{
+    if(e.key==='Escape') closeSidebar();
+  });
+  document.querySelectorAll('.view-nav-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-      document.getElementById('view-'+btn.dataset.view).classList.add('active');
+      activateView(btn.dataset.view);
+      closeSidebar();
     });
   });
 
@@ -2449,15 +2554,8 @@
   }
 
   // ---------- % hoàn thành: tự tính theo ngày, cho phép nhập tay đè lên ----------
+  // Nhật ký công việc giờ thuần là ghi chú — không còn ảnh hưởng đến % này nữa.
   function autoPercent(t){
-    // Ưu tiên: nếu việc này đã có nhật ký công việc ghi %, mỗi nhật ký đại diện
-    // cho phần tiến độ TĂNG THÊM trong đợt đó — cộng dồn tất cả lại, tối đa 100%.
-    const logsWithPct = worklogEntries.filter(e=>e.wbs_task_id===t.id && e.percent_at_time!=null);
-    if(logsWithPct.length){
-      const sum = logsWithPct.reduce((s,e)=>s+e.percent_at_time, 0);
-      return Math.min(100, Math.round(sum));
-    }
-
     if(!t.start || !t.end) return 0;
     const today = new Date().toISOString().slice(0,10);
     if(today >= t.end) return 100;
@@ -2916,7 +3014,7 @@
       const entries = worklogEntries.filter(e=>e.wbs_task_id===t.id).slice(0,5);
       const hasLog = entries.length>0;
       const logRows = entries.map(e=>`<div class="cw-log-item">
-          <div class="cw-log-meta">${fmtFull(e.log_date)}${e.percent_at_time!=null?' · '+e.percent_at_time+'%':''}${e.status?' · '+escapeHtml(e.status):''}</div>
+          <div class="cw-log-meta">${fmtFull(e.log_date)}${e.status?' · '+escapeHtml(e.status):''}</div>
           <div class="cw-log-desc">${escapeHtml(e.description||'(không có mô tả)')}</div>
         </div>`).join('');
       return `<div>
@@ -3151,7 +3249,7 @@
     const taskIds = tasks.map(t=>t.id);
     if(!taskIds.length){ worklogEntries = []; return; }
     const { data, error } = await supabase.from('task_progress_log')
-      .select('id, wbs_task_id, log_date, percent_at_time, description, due_date, status, created_by, created_at')
+      .select('id, wbs_task_id, log_date, description, due_date, status, created_by, created_at')
       .in('wbs_task_id', taskIds)
       .order('log_date', { ascending:false })
       .order('created_at', { ascending:false });
@@ -3193,7 +3291,7 @@
             ${canEdit?`<button class="mini-btn-text" onclick="openWorklogModal(null,'${e.id}')">Sửa</button><button class="mini-btn-text" style="color:var(--red);border-color:var(--red)" onclick="deleteWorklogEntry('${e.id}')">Xóa</button>`:''}
           </div>
         </div>
-        <div class="wl-item-meta">${fmtFull(e.log_date)}${e.percent_at_time!=null?' · '+e.percent_at_time+'%':''}${e.due_date?' · Hạn: '+fmtFull(e.due_date):''} · ${author?escapeHtml(author.name):'—'}</div>
+        <div class="wl-item-meta">${fmtFull(e.log_date)}${e.due_date?' · Hạn: '+fmtFull(e.due_date):''} · ${author?escapeHtml(author.name):'—'}</div>
         <div class="wl-item-desc">${escapeHtml(e.description||'(không có mô tả)')}</div>
       </div>`;
     }).join('') || `<div class="baseline-empty">Chưa có nhật ký nào${taskFilter?' cho công việc này':''}.</div>`;
@@ -3208,14 +3306,12 @@
       if(modalTitle) modalTitle.textContent = 'Sửa nhật ký công việc';
       document.getElementById('wl-task').value = e.wbs_task_id;
       document.getElementById('wl-date').value = e.log_date || '';
-      document.getElementById('wl-percent').value = e.percent_at_time!=null ? e.percent_at_time : '';
       document.getElementById('wl-desc').value = e.description || '';
       document.getElementById('wl-due').value = e.due_date || '';
       document.getElementById('wl-status').value = e.status || 'Đang thực hiện';
     } else {
       if(modalTitle) modalTitle.textContent = 'Thêm nhật ký công việc';
       document.getElementById('wl-date').value = new Date().toISOString().slice(0,10);
-      document.getElementById('wl-percent').value = '';
       document.getElementById('wl-desc').value = '';
       document.getElementById('wl-due').value = '';
       document.getElementById('wl-status').value = 'Đang thực hiện';
@@ -3230,11 +3326,9 @@
   async function confirmAddWorklog(){
     const taskId = document.getElementById('wl-task').value;
     if(!taskId){ alert('Chọn công việc trước.'); return; }
-    const pctVal = document.getElementById('wl-percent').value;
     const payload = {
       wbs_task_id: taskId,
       log_date: document.getElementById('wl-date').value || new Date().toISOString().slice(0,10),
-      percent_at_time: pctVal==='' ? null : Math.max(0,Math.min(100,parseInt(pctVal))),
       description: document.getElementById('wl-desc').value.trim() || null,
       due_date: document.getElementById('wl-due').value || null,
       status: document.getElementById('wl-status').value.trim() || null
@@ -3265,11 +3359,8 @@
     showToast('Đã xóa nhật ký');
   }
   function jumpToWorklog(taskId){
-    document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
-    const tabBtn = document.querySelector('.tabs button[data-view="worklog"]');
-    if(tabBtn) tabBtn.classList.add('active');
-    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-    document.getElementById('view-worklog').classList.add('active');
+    activateView('worklog');
+    closeSidebar();
     renderWorklogTaskOptions();
     const filterSel = document.getElementById('worklog-task-filter');
     if(filterSel) filterSel.value = taskId;
@@ -3296,6 +3387,7 @@
     adminRemoveWorkspaceMember, adminRenameContractor, adminRenameRole, adminRenameWorkspace, adminDeleteWorkspace, adminToggleAuthorityRole, adminToggleWorkspaceAdmin,
     autoGrow, growWrap, confirmOnEnter,
     clearPercentOverride, clearWeightOverride, updateWeight, closeCreateTicket, closeQueueDetail, closeSubmitModal, closeSendNotificationModal,
+    closeSidebar, toggleSidebar,
     openWorklogModal, closeWorklogModal, confirmAddWorklog, deleteWorklogEntry, jumpToWorklog, renderWorklogList, toggleCurrentWorkLog, togglePersonDone, reassignFromBoard,
     confirmCreateTicket, confirmSubmitEvidence, confirmSendScheduleNotifications, deleteQueueTicket, deleteRow, indentRow, lockBaseline,
     openCreateTicket, openQueueDetail, openSubmitModal, outdentRow, rejectQueueDetail, sendScheduleNotifications, switchWorkspace,
