@@ -228,6 +228,16 @@
 
   /* ---------- schedule builder (tree table) ---------- */
   .builder-toolbar{display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap;}
+  .builder-project-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+  .builder-project-tabs .proj-tab{appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--ink-muted);font-family:var(--font-sans);font-size:13px;font-weight:500;padding:7px 14px;border-radius:999px;cursor:pointer;}
+  .builder-project-tabs .proj-tab.active{background:var(--steel-dark);border-color:var(--steel-dark);color:#F2F3EF;}
+  .builder-project-tabs .proj-tab-add{border-style:dashed;color:var(--steel);}
+  .builder-project-tabs .proj-tab-add:hover{background:var(--steel-bg);}
+  .schedule-project-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+  .schedule-project-tabs .dp-tab{appearance:none;border:1px solid var(--steel-bg);background:var(--steel-bg);color:var(--steel);font-family:var(--font-sans);font-size:12.5px;font-weight:500;padding:6px 13px;border-radius:8px;cursor:pointer;}
+  .schedule-project-tabs .dp-tab.active{background:var(--steel);border-color:var(--steel);color:#fff;}
+  .schedule-project-tabs .dp-tab-add{background:transparent;border-style:dashed;border-color:var(--border);color:var(--ink-muted);}
+  .schedule-project-tabs .dp-tab-add:hover{background:var(--surface-alt);}
   .builder-view-toggle{display:flex;gap:4px;background:var(--surface-alt);padding:3px;border-radius:8px;}
   .builder-view-toggle button{border:none;background:transparent;padding:6px 12px;border-radius:6px;font-size:12.5px;cursor:pointer;color:var(--ink-muted);}
   .builder-view-toggle button.active{background:var(--surface);color:var(--ink);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.06);}
@@ -455,6 +465,8 @@
   <!-- ========== VIEW 0: XÂY DỰNG TIẾN ĐỘ ========== -->
   <section class="view" id="view-builder">
     <h2 class="section-title">Xây dựng tiến độ</h2>
+    <div class="builder-project-tabs" id="builder-project-tabs"></div>
+    <div class="schedule-project-tabs" id="schedule-project-tabs"></div>
     <div class="builder-toolbar">
       <button class="btn btn-primary" onclick="addRootTask()">+ Thêm hạng mục</button>
       <button class="btn btn-ghost" onclick="lockBaseline()">Chốt baseline</button>
@@ -708,6 +720,45 @@
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeSubmitModal()">Hủy</button>
       <button class="btn btn-primary" id="sm-submit-btn" onclick="confirmSubmitEvidence()">Nộp</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="create-schedule-project-overlay">
+  <div class="modal">
+    <h3>Tạo dự án mới</h3>
+    <p style="font-size:13px;color:var(--ink-muted);margin:0 0 12px;">Dự án mới là 1 bảng tiến độ hoàn toàn trống, tách riêng khỏi các dự án khác trong cùng workspace này — thêm hạng mục vào đây sẽ không lẫn với dự án khác.</p>
+    <label for="new-schedule-project-name">Tên dự án</label>
+    <input type="text" id="new-schedule-project-name" placeholder="VD: Bồn chứa LNG, Cảng nhập...">
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeCreateScheduleProjectModal()">Hủy</button>
+      <button class="btn btn-primary" onclick="confirmCreateScheduleProject()">Tạo dự án</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="move-project-overlay">
+  <div class="modal">
+    <h3>Chuyển sang dự án khác</h3>
+    <p style="font-size:13px;color:var(--ink-muted);margin:0 0 12px;">Hạng mục này và toàn bộ dòng con bên dưới (nếu có) sẽ chuyển hẳn sang dự án bạn chọn — dữ liệu (%, ngày, nhật ký, phiếu duyệt...) giữ nguyên, không mất gì.</p>
+    <label for="move-target-project">Chuyển tới dự án</label>
+    <select id="move-target-project"></select>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeMoveProjectModal()">Hủy</button>
+      <button class="btn btn-primary" onclick="confirmMoveToProject()">Chuyển</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="create-workspace-overlay">
+  <div class="modal">
+    <h3>Tạo dự án mới</h3>
+    <p style="font-size:13px;color:var(--ink-muted);margin:0 0 12px;">Dự án mới sẽ có cây tiến độ hoàn toàn riêng, tách biệt với các dự án khác. Chỉ mình bạn thấy được nó ban đầu — vào Quản trị để thêm người vào sau.</p>
+    <label for="new-workspace-name">Tên dự án</label>
+    <input type="text" id="new-workspace-name" placeholder="VD: Điện mặt trời mái nhà Gear Meister">
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeCreateWorkspaceModal()">Hủy</button>
+      <button class="btn btn-primary" onclick="confirmCreateWorkspace()">Tạo dự án</button>
     </div>
   </div>
 </div>
@@ -1125,6 +1176,7 @@
       }
       await loadRoles();
       await loadPersonnelList();
+      await loadScheduleProjects();
       await loadTasksFromServer();
       await loadBaseline();
       document.getElementById('baseline-status').textContent = baseline
@@ -1283,13 +1335,45 @@
     el.style.display = currentWorkspaces.length > 1 ? '' : 'none';
   }
 
+  // ---------- tab dự án ngay trong Xây dựng tiến độ ----------
+  function renderBuilderProjectTabs(){
+    const el = document.getElementById('builder-project-tabs');
+    if(!el) return;
+    let html = currentWorkspaces.map(w=>
+      `<button class="proj-tab ${w.id===PROJECT_ID?'active':''}" onclick="switchWorkspace('${w.id}')">${escapeHtml(w.name)}</button>`
+    ).join('');
+    if(currentPersonnel?.is_admin){
+      html += `<button class="proj-tab proj-tab-add" onclick="openCreateWorkspaceModal()">+ Dự án mới</button>`;
+    }
+    el.innerHTML = html;
+  }
+  window.openCreateWorkspaceModal = function(){
+    document.getElementById('new-workspace-name').value = '';
+    document.getElementById('create-workspace-overlay').classList.remove('hidden');
+  };
+  window.closeCreateWorkspaceModal = function(){
+    document.getElementById('create-workspace-overlay').classList.add('hidden');
+  };
+  window.confirmCreateWorkspace = async function(){
+    const name = document.getElementById('new-workspace-name').value.trim();
+    if(!name){ alert('Nhập tên dự án trước.'); return; }
+    const { data: newId, error } = await supabase.rpc('create_workspace', { p_name: name });
+    if(error){ alert('Lỗi tạo dự án: ' + error.message); return; }
+    currentWorkspaces.push({ id: newId, name });
+    closeCreateWorkspaceModal();
+    renderWorkspaceSwitcher();
+    await switchWorkspace(newId);
+  };
+
   async function switchWorkspace(newProjectId){
     if(newProjectId === PROJECT_ID) return;
     PROJECT_ID = newProjectId;
     localStorage.setItem('lng_last_workspace', newProjectId);
+    renderWorkspaceSwitcher();
     document.getElementById('app-loading').classList.remove('hidden');
     document.getElementById('app-loading').textContent = 'Đang chuyển workspace...';
     try {
+      await loadScheduleProjects();
       await loadTasksFromServer();
       await loadBaseline();
       document.getElementById('baseline-status').textContent = baseline
@@ -2244,7 +2328,7 @@
 
   async function loadTasksFromServer(){
     const { data: rows } = await supabase.from('wbs_task')
-      .select('id, name, parent_task_id, sort_order, planned_start, planned_finish, percent_override, weight_override, is_priority_flag')
+      .select('id, name, parent_task_id, sort_order, planned_start, planned_finish, percent_override, weight_override, is_priority_flag, schedule_project_id')
       .eq('project_id', PROJECT_ID);
     const ids = (rows||[]).map(r=>r.id);
 
@@ -2281,7 +2365,8 @@
           percentOverride: r.percent_override,
           weightOverride: r.weight_override,
           priorityFlag: r.is_priority_flag,
-          sortOrder: r.sort_order
+          sortOrder: r.sort_order,
+          scheduleProjectId: r.schedule_project_id
         });
         walk(r.id, level+1);
       });
@@ -2301,6 +2386,88 @@
     return null;
   }
 
+  // ---------- dự án: gom nhiều hạng mục gốc lại thành 1 "bảng" tiến độ riêng, trong cùng workspace ----------
+  let currentScheduleProjects = []; // danh sách dự án của workspace hiện tại
+  let currentScheduleProjectId = null; // null = xem "Tất cả"
+
+  async function loadScheduleProjects(){
+    const { data } = await supabase.from('schedule_project').select('id, name').eq('project_id', PROJECT_ID).order('created_at');
+    currentScheduleProjects = data || [];
+    if(!currentScheduleProjects.find(p=>p.id===currentScheduleProjectId)) currentScheduleProjectId = null;
+  }
+  function getVisibleTaskIndices(){
+    if(!currentScheduleProjectId) return tasks.map((_,i)=>i);
+    const indices = [];
+    tasks.forEach((t,i)=>{
+      if(t.level===0 && t.scheduleProjectId===currentScheduleProjectId){
+        indices.push(i);
+        const [s,e] = getDescendantRange(i);
+        for(let j=s;j<e;j++) indices.push(j);
+      }
+    });
+    return indices;
+  }
+  function renderScheduleProjectTabs(){
+    const el = document.getElementById('schedule-project-tabs');
+    if(!el) return;
+    let html = `<button class="dp-tab ${!currentScheduleProjectId?'active':''}" onclick="selectScheduleProject(null)">Tất cả</button>`;
+    html += currentScheduleProjects.map(p=>
+      `<button class="dp-tab ${p.id===currentScheduleProjectId?'active':''}" onclick="selectScheduleProject('${p.id}')">${escapeHtml(p.name)}</button>`
+    ).join('');
+    html += `<button class="dp-tab dp-tab-add" onclick="openCreateScheduleProjectModal()">+ Dự án mới</button>`;
+    el.innerHTML = html;
+  }
+  window.selectScheduleProject = function(id){
+    currentScheduleProjectId = id || null;
+    renderBuilder();
+  };
+  window.openCreateScheduleProjectModal = function(){
+    document.getElementById('new-schedule-project-name').value = '';
+    document.getElementById('create-schedule-project-overlay').classList.remove('hidden');
+  };
+  window.closeCreateScheduleProjectModal = function(){
+    document.getElementById('create-schedule-project-overlay').classList.add('hidden');
+  };
+  window.confirmCreateScheduleProject = async function(){
+    const name = document.getElementById('new-schedule-project-name').value.trim();
+    if(!name){ alert('Nhập tên dự án trước.'); return; }
+    const { data, error } = await supabase.from('schedule_project')
+      .insert({ project_id: PROJECT_ID, name, created_by: currentPersonnel.id })
+      .select('id, name').single();
+    if(error){ alert('Lỗi tạo dự án: ' + error.message); return; }
+    currentScheduleProjects.push(data);
+    currentScheduleProjectId = data.id;
+    closeCreateScheduleProjectModal();
+    renderBuilder();
+  };
+  window.openMoveToProjectModal = function(i){
+    moveTaskIndex = i;
+    const t = tasks[i];
+    const sel = document.getElementById('move-target-project');
+    const options = currentScheduleProjects.filter(p=>p.id !== t.scheduleProjectId);
+    if(!options.length){ alert('Chưa có dự án nào khác để chuyển sang. Tạo dự án mới trước (nút "+ Dự án mới").'); return; }
+    sel.innerHTML = options.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+    document.getElementById('move-project-overlay').classList.remove('hidden');
+  };
+  window.closeMoveProjectModal = function(){
+    document.getElementById('move-project-overlay').classList.add('hidden');
+  };
+  window.confirmMoveToProject = async function(){
+    const targetId = document.getElementById('move-target-project').value;
+    const t = tasks[moveTaskIndex];
+    if(!confirm(`Chuyển "${t.name}" (và toàn bộ dòng con nếu có) sang dự án khác?`)) return;
+    const maxOrder = Math.max(0, ...tasks.filter(x=>x.level===0 && x.scheduleProjectId===targetId).map(x=>x.sortOrder||0));
+    const { error } = await supabase.from('wbs_task').update({
+      parent_task_id: null,
+      schedule_project_id: targetId,
+      sort_order: maxOrder + 1
+    }).eq('id', t.id);
+    if(error){ showToast('Lỗi chuyển dự án: ' + error.message); return; }
+    closeMoveProjectModal();
+    currentScheduleProjectId = targetId;
+    await reloadAndRender();
+  };
+  let moveTaskIndex = null;
 
   function isParentRow(i){
     return i < tasks.length-1 && tasks[i+1].level > tasks[i].level;
@@ -2311,12 +2478,15 @@
     return [i+1, j];
   }
   function computeWbsCodes(){
-    let counters = [], codes = [];
-    for(const t of tasks){
+    const visible = getVisibleTaskIndices();
+    let counters = [];
+    const codes = [];
+    visible.forEach(i=>{
+      const t = tasks[i];
       counters = counters.slice(0, t.level+1);
       counters[t.level] = (counters[t.level]||0)+1;
-      codes.push(counters.slice(0, t.level+1).join('.'));
-    }
+      codes[i] = counters.slice(0, t.level+1).join('.');
+    });
     return codes;
   }
   function computeRollup(i){
@@ -2484,7 +2654,8 @@
   async function addRootTask(){
     const maxOrder = await getMaxSortOrderForParent(null);
     const { error } = await supabase.from('wbs_task').insert({
-      project_id: PROJECT_ID, name:'Hạng mục mới', wbs_code:'', parent_task_id:null, sort_order: maxOrder+1
+      project_id: PROJECT_ID, name:'Hạng mục mới', wbs_code:'', parent_task_id:null, sort_order: maxOrder+1,
+      schedule_project_id: currentScheduleProjectId
     });
     if(error){ showToast('Lỗi: ' + error.message); return; }
     await reloadAndRender();
@@ -2527,6 +2698,18 @@
       idsToDelete.push(tasks[j].id);
     }
 
+    // Chặn hẳn nếu có phiếu duyệt/lượt phê duyệt thật đã gắn vào việc này hoặc việc con —
+    // đây là hồ sơ duyệt tiến độ, không tự ý xóa kèm được.
+    const [{ data: esRows }, { data: taiRows }] = await Promise.all([
+      supabase.from('evidence_submission').select('id').in('wbs_task_id', idsToDelete),
+      supabase.from('task_approval_instance').select('id').in('wbs_task_id', idsToDelete),
+    ]);
+    const blockCount = (esRows?.length||0) + (taiRows?.length||0);
+    if(blockCount){
+      alert(`Không thể xóa: có ${blockCount} phiếu duyệt/lượt phê duyệt đã gửi gắn với việc này hoặc việc con của nó. Hãy xử lý (hủy/hoàn tất) các phiếu đó trước nếu vẫn muốn xóa.`);
+      return;
+    }
+
     const { data: baselineRows } = await supabase.from('project_baseline_task')
       .select('wbs_task_id').in('wbs_task_id', idsToDelete);
 
@@ -2540,6 +2723,9 @@
       const { error: eBaseline } = await supabase.from('project_baseline_task').delete().in('wbs_task_id', idsToDelete);
       if(eBaseline){ showToast('Lỗi xóa dữ liệu baseline: ' + eBaseline.message); return; }
     }
+    // Dọn kèm log % tự động và thông báo liên quan — không cần cảnh báo riêng vì chỉ là dữ liệu phái sinh/thông báo
+    await supabase.from('progress_log').delete().in('wbs_task_id', idsToDelete);
+    await supabase.from('notification').delete().in('reference_task_id', idsToDelete);
 
     const { error } = await supabase.from('wbs_task').delete().eq('id', target.id);
     if(error){ showToast('Lỗi xóa: ' + error.message); return; }
@@ -2785,10 +2971,14 @@
 
   // ---------- render: tab Xây dựng tiến độ ----------
   function renderBuilder(){
+    renderBuilderProjectTabs();
+    renderScheduleProjectTabs();
+    const visibleSet = new Set(getVisibleTaskIndices());
     const codes = computeWbsCodes();
-    const leaves = tasks.map((t,i)=>({i,t})).filter(x=>!isParentRow(x.i));
+    const leaves = tasks.map((t,i)=>({i,t})).filter(x=>!isParentRow(x.i) && visibleSet.has(x.i));
     let html = '';
     tasks.forEach((t,i)=>{
+      if(!visibleSet.has(i)) return;
       const parent = isParentRow(i);
       let startCell, endCell, predCell, pctCell, assigneeCell, weightCell, starBtn = '';
       if(parent){
@@ -2833,6 +3023,7 @@
           <button class="mini-btn" title="Thêm dòng con" onclick="addChild(${i})">+</button>
           <button class="mini-btn" title="Thụt lề" onclick="indentRow(${i})">⇥</button>
           <button class="mini-btn" title="Nhô ra" onclick="outdentRow(${i})">⇤</button>
+          <button class="mini-btn" title="Chuyển sang dự án khác" onclick="openMoveToProjectModal(${i})">⇄</button>
           <button class="mini-btn mini-danger" title="Xóa" onclick="deleteRow(${i})">×</button>
         </td>
       </tr>`;
@@ -2870,7 +3061,9 @@
   }
   function computeTimelineRange(){
     let starts=[], ends=[];
+    const visibleSet = new Set(getVisibleTaskIndices());
     tasks.forEach((t,i)=>{
+      if(!visibleSet.has(i)) return;
       if(!isParentRow(i)){
         if(t.start) starts.push(t.start);
         if(t.end) ends.push(t.end);
@@ -2903,6 +3096,7 @@
     const colW = 100/labels.length;
     const codes = computeWbsCodes();
     const today = new Date().toISOString().slice(0,10);
+    const visibleSet = new Set(getVisibleTaskIndices());
 
     let html = `<div class="gantt-axis-label">Hạng mục / công việc</div><div class="gantt-axis-track">` +
       labels.map(l=>`<span>${l}</span>`).join('') + `</div>`;
@@ -2911,6 +3105,7 @@
         repeating-linear-gradient(to right, transparent 0 ${colW}%, rgba(46,96,145,.05) ${colW}% ${colW*2}%);"></div>`;
 
     tasks.forEach((t,i)=>{
+      if(!visibleSet.has(i)) return;
       if(isHiddenByCollapse(i)) return;
       const parent = isParentRow(i);
       if(parent){
