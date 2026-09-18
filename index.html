@@ -228,11 +228,6 @@
 
   /* ---------- schedule builder (tree table) ---------- */
   .builder-toolbar{display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap;}
-  .builder-project-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
-  .builder-project-tabs .proj-tab{appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--ink-muted);font-family:var(--font-sans);font-size:13px;font-weight:500;padding:7px 14px;border-radius:999px;cursor:pointer;}
-  .builder-project-tabs .proj-tab.active{background:var(--steel-dark);border-color:var(--steel-dark);color:#F2F3EF;}
-  .builder-project-tabs .proj-tab-add{border-style:dashed;color:var(--steel);}
-  .builder-project-tabs .proj-tab-add:hover{background:var(--steel-bg);}
   .schedule-project-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
   .schedule-project-tabs .dp-tab{appearance:none;border:1px solid var(--steel-bg);background:var(--steel-bg);color:var(--steel);font-family:var(--font-sans);font-size:12.5px;font-weight:500;padding:6px 13px;border-radius:8px;cursor:pointer;}
   .schedule-project-tabs .dp-tab.active{background:var(--steel);border-color:var(--steel);color:#fff;}
@@ -465,7 +460,6 @@
   <!-- ========== VIEW 0: XÂY DỰNG TIẾN ĐỘ ========== -->
   <section class="view" id="view-builder">
     <h2 class="section-title">Xây dựng tiến độ</h2>
-    <div class="builder-project-tabs" id="builder-project-tabs"></div>
     <div class="schedule-project-tabs" id="schedule-project-tabs"></div>
     <div class="builder-toolbar">
       <button class="btn btn-primary" onclick="addRootTask()">+ Thêm hạng mục</button>
@@ -746,19 +740,6 @@
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeMoveProjectModal()">Hủy</button>
       <button class="btn btn-primary" onclick="confirmMoveToProject()">Chuyển</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay hidden" id="create-workspace-overlay">
-  <div class="modal">
-    <h3>Tạo dự án mới</h3>
-    <p style="font-size:13px;color:var(--ink-muted);margin:0 0 12px;">Dự án mới sẽ có cây tiến độ hoàn toàn riêng, tách biệt với các dự án khác. Chỉ mình bạn thấy được nó ban đầu — vào Quản trị để thêm người vào sau.</p>
-    <label for="new-workspace-name">Tên dự án</label>
-    <input type="text" id="new-workspace-name" placeholder="VD: Điện mặt trời mái nhà Gear Meister">
-    <div class="modal-btns">
-      <button class="btn btn-ghost" onclick="closeCreateWorkspaceModal()">Hủy</button>
-      <button class="btn btn-primary" onclick="confirmCreateWorkspace()">Tạo dự án</button>
     </div>
   </div>
 </div>
@@ -1335,35 +1316,6 @@
     el.style.display = currentWorkspaces.length > 1 ? '' : 'none';
   }
 
-  // ---------- tab dự án ngay trong Xây dựng tiến độ ----------
-  function renderBuilderProjectTabs(){
-    const el = document.getElementById('builder-project-tabs');
-    if(!el) return;
-    let html = currentWorkspaces.map(w=>
-      `<button class="proj-tab ${w.id===PROJECT_ID?'active':''}" onclick="switchWorkspace('${w.id}')">${escapeHtml(w.name)}</button>`
-    ).join('');
-    if(currentPersonnel?.is_admin){
-      html += `<button class="proj-tab proj-tab-add" onclick="openCreateWorkspaceModal()">+ Dự án mới</button>`;
-    }
-    el.innerHTML = html;
-  }
-  window.openCreateWorkspaceModal = function(){
-    document.getElementById('new-workspace-name').value = '';
-    document.getElementById('create-workspace-overlay').classList.remove('hidden');
-  };
-  window.closeCreateWorkspaceModal = function(){
-    document.getElementById('create-workspace-overlay').classList.add('hidden');
-  };
-  window.confirmCreateWorkspace = async function(){
-    const name = document.getElementById('new-workspace-name').value.trim();
-    if(!name){ alert('Nhập tên dự án trước.'); return; }
-    const { data: newId, error } = await supabase.rpc('create_workspace', { p_name: name });
-    if(error){ alert('Lỗi tạo dự án: ' + error.message); return; }
-    currentWorkspaces.push({ id: newId, name });
-    closeCreateWorkspaceModal();
-    renderWorkspaceSwitcher();
-    await switchWorkspace(newId);
-  };
 
   async function switchWorkspace(newProjectId){
     if(newProjectId === PROJECT_ID) return;
@@ -2698,13 +2650,12 @@
       idsToDelete.push(tasks[j].id);
     }
 
-    // Chặn hẳn nếu có phiếu duyệt/lượt phê duyệt thật đã gắn vào việc này hoặc việc con —
-    // đây là hồ sơ duyệt tiến độ, không tự ý xóa kèm được.
-    const [{ data: esRows }, { data: taiRows }] = await Promise.all([
-      supabase.from('evidence_submission').select('id').in('wbs_task_id', idsToDelete),
-      supabase.from('task_approval_instance').select('id').in('wbs_task_id', idsToDelete),
-    ]);
-    const blockCount = (esRows?.length||0) + (taiRows?.length||0);
+    // Chặn hẳn nếu có LƯỢT PHÊ DUYỆT thật (task_approval_instance) đã gắn vào việc này hoặc việc con —
+    // đây mới là hồ sơ duyệt tiến độ thật sự (đã gửi cho người duyệt xử lý), không tự ý xóa kèm được.
+    // evidence_submission không có approval instance nào đi kèm chỉ là rác sót lại từ lần gửi dở dang,
+    // không tính là "phiếu duyệt thật" — sẽ tự dọn bên dưới, không chặn xóa vì lý do này.
+    const { data: taiRows } = await supabase.from('task_approval_instance').select('id').in('wbs_task_id', idsToDelete);
+    const blockCount = taiRows?.length || 0;
     if(blockCount){
       alert(`Không thể xóa: có ${blockCount} phiếu duyệt/lượt phê duyệt đã gửi gắn với việc này hoặc việc con của nó. Hãy xử lý (hủy/hoàn tất) các phiếu đó trước nếu vẫn muốn xóa.`);
       return;
@@ -2726,6 +2677,19 @@
     // Dọn kèm log % tự động và thông báo liên quan — không cần cảnh báo riêng vì chỉ là dữ liệu phái sinh/thông báo
     await supabase.from('progress_log').delete().in('wbs_task_id', idsToDelete);
     await supabase.from('notification').delete().in('reference_task_id', idsToDelete);
+
+    // Dọn evidence_submission mồ côi (không có task_approval_instance nào — tức chưa từng thật sự gửi duyệt,
+    // chỉ là rác sót lại từ lần gửi dở dang) kèm file đính kèm của nó, nếu có.
+    const { data: esRows } = await supabase.from('evidence_submission').select('id').in('wbs_task_id', idsToDelete);
+    const orphanEsIds = (esRows||[]).map(e=>e.id);
+    if(orphanEsIds.length){
+      const { data: attRows } = await supabase.from('evidence_attachment').select('id, file_url').in('evidence_submission_id', orphanEsIds);
+      if(attRows && attRows.length){
+        await supabase.storage.from('evidence').remove(attRows.map(a=>a.file_url));
+        await supabase.from('evidence_attachment').delete().in('evidence_submission_id', orphanEsIds);
+      }
+      await supabase.from('evidence_submission').delete().in('id', orphanEsIds);
+    }
 
     const { error } = await supabase.from('wbs_task').delete().eq('id', target.id);
     if(error){ showToast('Lỗi xóa: ' + error.message); return; }
@@ -2971,7 +2935,6 @@
 
   // ---------- render: tab Xây dựng tiến độ ----------
   function renderBuilder(){
-    renderBuilderProjectTabs();
     renderScheduleProjectTabs();
     const visibleSet = new Set(getVisibleTaskIndices());
     const codes = computeWbsCodes();
