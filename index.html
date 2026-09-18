@@ -252,6 +252,8 @@
   .name-input:hover,.name-input:focus{border-color:var(--border);background:var(--surface);}
   .name-parent{font-weight:600;}
   .builder-table input[type=date],.builder-table select{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 6px;font-family:var(--font-sans);font-size:12.5px;background:var(--surface);color:var(--ink);}
+  .assignee-btn{width:100%;text-align:left;border:1px solid var(--border);border-radius:6px;padding:5px 6px;font-family:var(--font-sans);font-size:12.5px;background:var(--surface);color:var(--ink);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .assignee-btn:hover{border-color:var(--steel);}
   .ro-date{font-family:var(--font-mono);font-size:12.5px;color:var(--ink-muted);padding:5px 6px;display:inline-block;}
   .col-actions{white-space:nowrap;}
   .mini-btn{width:26px;height:26px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;font-size:13px;color:var(--ink-muted);margin-right:3px;line-height:1;}
@@ -727,6 +729,19 @@
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeCreateScheduleProjectModal()">Hủy</button>
       <button class="btn btn-primary" onclick="confirmCreateScheduleProject()">Tạo dự án</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="assignee-modal-overlay">
+  <div class="modal">
+    <h3>Người phụ trách</h3>
+    <p style="font-size:13px;color:var(--ink-muted);margin:0 0 10px;">Tick chọn 1 hoặc nhiều người cùng phụ trách việc này.</p>
+    <div id="assignee-checklist" style="max-height:280px;overflow-y:auto;"></div>
+    <button class="btn btn-ghost" style="margin-top:10px;width:100%" onclick="addNewPersonnelFromAssigneeModal()">+ Thêm nhân sự mới…</button>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeAssigneeModal()">Hủy</button>
+      <button class="btn btn-primary" onclick="confirmAssignee()">Lưu</button>
     </div>
   </div>
 </div>
@@ -1480,7 +1495,7 @@
   function updateCreateTicketDefaults(){
     const taskId = document.getElementById('ct-task').value;
     const t = tasks.find(x=>x.id===taskId);
-    if(t && t.assignedTo) document.getElementById('ct-submitter').value = t.assignedTo;
+    if(t && t.assignedTo && t.assignedTo.length) document.getElementById('ct-submitter').value = t.assignedTo.includes(currentPersonnel.id) ? currentPersonnel.id : t.assignedTo[0];
   }
   function closeCreateTicket(){
     document.getElementById('create-ticket-overlay').classList.add('hidden');
@@ -1778,7 +1793,7 @@
     if(idx<0) return;
     const t = tasks[idx];
     const codes = computeWbsCodes();
-    const assigneeName = personName(t.assignedTo) || 'Chưa gán người phụ trách';
+    const assigneeName = personNamesList(t.assignedTo) || 'Chưa gán người phụ trách';
     document.getElementById('sm-context').innerHTML =
       `Công việc: <strong>${codes[idx]} — ${escapeHtml(t.name)}</strong><br>Người nộp: <strong>${escapeHtml(assigneeName)}</strong>`;
     document.getElementById('sm-approver').innerHTML =
@@ -1800,7 +1815,7 @@
     const approver = personnel.find(p=>p.id===approverId);
     const note = document.getElementById('submit-ev-note').value.trim();
     const file = document.getElementById('submit-ev-file').files[0];
-    const submitterId = t.assignedTo || currentPersonnel.id;
+    const submitterId = (t.assignedTo && t.assignedTo.includes(currentPersonnel.id)) ? currentPersonnel.id : (t.assignedTo && t.assignedTo[0]) || currentPersonnel.id;
 
     const btn = document.getElementById('sm-submit-btn');
     btn.disabled = true; btn.textContent = 'Đang nộp...';
@@ -2294,7 +2309,7 @@
       assigns = assignRes.data || [];
     }
     const predMap = {}; deps.forEach(d=> predMap[d.successor_task_id] = d.predecessor_task_id);
-    const assignMap = {}; assigns.forEach(a=> assignMap[a.wbs_task_id] = a.personnel_id);
+    const assignMap = {}; assigns.forEach(a=> (assignMap[a.wbs_task_id] = assignMap[a.wbs_task_id] || []).push(a.personnel_id));
 
     const byParent = {};
     (rows||[]).forEach(r=>{
@@ -2313,7 +2328,7 @@
           start: r.planned_start,
           end: r.planned_finish,
           pred: predMap[r.id] || null,
-          assignedTo: assignMap[r.id] || null,
+          assignedTo: assignMap[r.id] || [],
           percentOverride: r.percent_override,
           weightOverride: r.weight_override,
           priorityFlag: r.is_priority_flag,
@@ -2581,27 +2596,50 @@
     if(error){ showToast('Lỗi: ' + error.message); return; }
     await reloadAndRender();
   }
-  async function updateAssignee(i,val){
+  let assigneeModalTaskIndex = null;
+  window.openAssigneeModal = function(i){
+    assigneeModalTaskIndex = i;
+    const current = new Set(tasks[i].assignedTo || []);
+    const list = document.getElementById('assignee-checklist');
+    list.innerHTML = personnel.map(p=>`
+      <label style="display:flex;align-items:center;gap:8px;padding:7px 4px;font-size:13.5px;cursor:pointer;">
+        <input type="checkbox" value="${p.id}" ${current.has(p.id)?'checked':''}>
+        <span>${escapeHtml(p.name)}${p.role?' — '+escapeHtml(p.role):''}</span>
+      </label>`).join('') || `<p style="font-size:13px;color:var(--ink-muted)">Chưa có nhân sự nào.</p>`;
+    document.getElementById('assignee-modal-overlay').classList.remove('hidden');
+  };
+  window.closeAssigneeModal = function(){
+    document.getElementById('assignee-modal-overlay').classList.add('hidden');
+  };
+  window.addNewPersonnelFromAssigneeModal = async function(){
+    const name = prompt('Nhập tên nhân sự mới:');
+    if(!name || !name.trim()) return;
+    const { data: newP, error } = await supabase.from('personnel')
+      .insert({ full_name: name.trim(), contractor_id: currentPersonnel.contractor_id })
+      .select('id').single();
+    if(error){ showToast('Lỗi thêm nhân sự: ' + error.message); return; }
+    await loadPersonnelList();
+    openAssigneeModal(assigneeModalTaskIndex);
+  };
+  window.confirmAssignee = async function(){
+    const i = assigneeModalTaskIndex;
     const id = tasks[i].id;
-    if(val==='__new__'){
-      const name = prompt('Nhập tên nhân sự mới:');
-      if(!name || !name.trim()) return;
-      const { data: newP, error } = await supabase.from('personnel')
-        .insert({ full_name: name.trim(), contractor_id: currentPersonnel.contractor_id })
-        .select('id').single();
-      if(error){ showToast('Lỗi thêm nhân sự: ' + error.message); return; }
-      await supabase.from('task_assignment').delete().eq('wbs_task_id', id);
-      await supabase.from('task_assignment').insert({wbs_task_id:id, personnel_id:newP.id});
-    } else {
-      await supabase.from('task_assignment').delete().eq('wbs_task_id', id);
-      if(val) await supabase.from('task_assignment').insert({wbs_task_id:id, personnel_id:val});
+    const checked = Array.from(document.querySelectorAll('#assignee-checklist input[type=checkbox]:checked')).map(el=>el.value);
+    await supabase.from('task_assignment').delete().eq('wbs_task_id', id);
+    if(checked.length){
+      await supabase.from('task_assignment').insert(checked.map(pid=>({wbs_task_id:id, personnel_id:pid})));
     }
+    closeAssigneeModal();
     await loadPersonnelList();
     await reloadAndRender();
-  }
+  };
   function personName(id){
     const p = personnel.find(p=>p.id===id);
     return p ? p.name : null;
+  }
+  function personNamesList(ids){
+    if(!ids || !ids.length) return '';
+    return ids.map(id=>personName(id)).filter(Boolean).join(', ');
   }
   async function addRootTask(){
     const maxOrder = await getMaxSortOrderForParent(null);
@@ -2802,16 +2840,18 @@
     const codes = computeWbsCodes();
     const byPerson = {};
     tasks.forEach((t,i)=>{
-      if(isParentRow(i) || !t.assignedTo) return;
-      const p = personnel.find(x=>x.id===t.assignedTo);
-      if(!p) return;
-      if(!byPerson[p.id]) byPerson[p.id] = { name: p.name, email: p.email, tasks: [] };
-      byPerson[p.id].tasks.push({
-        code: codes[i],
-        name: t.name,
-        start: fmtFull(t.start),
-        end: fmtFull(t.end),
-        percent: getPercent(t)
+      if(isParentRow(i) || !t.assignedTo || !t.assignedTo.length) return;
+      t.assignedTo.forEach(pid=>{
+        const p = personnel.find(x=>x.id===pid);
+        if(!p) return;
+        if(!byPerson[p.id]) byPerson[p.id] = { name: p.name, email: p.email, tasks: [] };
+        byPerson[p.id].tasks.push({
+          code: codes[i],
+          name: t.name,
+          start: fmtFull(t.start),
+          end: fmtFull(t.end),
+          percent: getPercent(t)
+        });
       });
     });
 
@@ -2964,7 +3004,7 @@
         const isWeightOverride = t.weightOverride!=null;
         weightCell = `<input class="pct-input ${isWeightOverride?'is-override':''}" type="number" min="0"
           value="${getWeight(t)}" onchange="updateWeight(${i},this.value)">${isWeightOverride?`<button class="pct-clear" onclick="clearWeightOverride(${i})" title="Bỏ số nhập tay, quay lại tự tính theo số ngày thi công">tự tính</button>`:''}`;
-        assigneeCell = `<select onchange="updateAssignee(${i},this.value)"><option value="">— chưa gán —</option>${personnel.map(p=>`<option value="${p.id}" ${t.assignedTo===p.id?'selected':''}>${escapeHtml(p.name)}${p.role?' — '+escapeHtml(p.role):''}</option>`).join('')}<option value="__new__">+ Thêm nhân sự mới…</option></select>`;
+        assigneeCell = `<button class="assignee-btn" onclick="openAssigneeModal(${i})">${t.assignedTo && t.assignedTo.length ? escapeHtml(personNamesList(t.assignedTo)) : '— chưa gán —'}</button>`;
         starBtn = `<button class="mini-btn ${t.priorityFlag?'mini-star-active':''}" title="Đánh dấu ưu tiên thủ công" onclick="togglePriority(${i})">★</button>`;
       }
       html += `<tr class="${parent?'row-parent':'row-leaf'}">
@@ -3082,7 +3122,7 @@
         let barClass = 'inprogress';
         if(pct>=100) barClass='done';
         else if(t.end && today>t.end) barClass='overdue';
-        html += `<div class="gantt-label"><div class="name">${escapeHtml(t.name)}${t.priorityFlag?' ★':''}</div><div class="meta">${codes[i]}${personName(t.assignedTo)?' · '+escapeHtml(personName(t.assignedTo)):''}</div></div><div class="gantt-track">`;
+        html += `<div class="gantt-label"><div class="name">${escapeHtml(t.name)}${t.priorityFlag?' ★':''}</div><div class="meta">${codes[i]}${personNamesList(t.assignedTo)?' · '+escapeHtml(personNamesList(t.assignedTo)):''}</div></div><div class="gantt-track">`;
         if(t.start && t.end){
           const left = dateToPercent(t.start,range);
           const width = Math.max(dateToPercent(t.end,range)-left,1);
@@ -3144,7 +3184,7 @@
       const impactNote = x.downstream>0 ? ` · ảnh hưởng ${x.downstream} việc khác` : '';
       return `<div class="task-row ${overdue?'crit-red':''}">
         <div class="code">${codes[x.i]}${t.priorityFlag?' ★':''}</div>
-        <div class="info"><div class="name">${escapeHtml(t.name)}</div><div class="meta">${personName(t.assignedTo)?escapeHtml(personName(t.assignedTo))+' · ':''}Hạn ${fmt(t.end)}${overdue?' · trễ':''}${impactNote}</div></div>
+        <div class="info"><div class="name">${escapeHtml(t.name)}</div><div class="meta">${personNamesList(t.assignedTo)?escapeHtml(personNamesList(t.assignedTo))+' · ':''}Hạn ${fmt(t.end)}${overdue?' · trễ':''}${impactNote}</div></div>
         <span class="badge ${pct>=100?'done':overdue?'rejected':'progress'}">${pct}%</span>
       </div>`;
     }).join('') || `<div class="task-row"><div class="info"><div class="meta">Chưa có công việc nào có ngày.</div></div></div>`;
@@ -3155,7 +3195,7 @@
   function canSeeAllOverview(){ return iHavePermission('overview_all'); }
   function myOverviewTasks(list){
     if(canSeeAllOverview()) return list;
-    return list.filter(x=>x.t.assignedTo===currentPersonnel.id);
+    return list.filter(x=>x.t.assignedTo && x.t.assignedTo.includes(currentPersonnel.id));
   }
   function renderOverviewScopeTag(){
     const el = document.getElementById('overview-scope-tag');
@@ -3220,7 +3260,7 @@
       const overdue = t.end<today && pct<100;
       return `<div class="task-row ${overdue?'crit-red':''}">
         <div class="code">${codes[x.i]}</div>
-        <div class="info"><div class="name">${escapeHtml(t.name)}</div><div class="meta">${personName(t.assignedTo)?escapeHtml(personName(t.assignedTo))+' · ':''}${fmt(t.start)} → ${fmt(t.end)}${overdue?' · trễ':''}</div></div>
+        <div class="info"><div class="name">${escapeHtml(t.name)}</div><div class="meta">${personNamesList(t.assignedTo)?escapeHtml(personNamesList(t.assignedTo))+' · ':''}${fmt(t.start)} → ${fmt(t.end)}${overdue?' · trễ':''}</div></div>
         <span class="badge ${pct>=100?'done':overdue?'rejected':'progress'}">${pct}%</span>
       </div>`;
     }).join('') || `<div class="task-row"><div class="info"><div class="meta">Không có công việc nào rơi vào tuần này (${fmt(wkStart)} → ${fmt(wkEnd)}).</div></div></div>`;
@@ -3333,7 +3373,7 @@
       : 'Không có công việc nào đang bị khóa.';
 
     // ----- khối "Chưa phân công" -----
-    const unassigned = leaves.filter(x=>!x.t.assignedTo);
+    const unassigned = leaves.filter(x=>!x.t.assignedTo || !x.t.assignedTo.length);
     document.getElementById('count-unassigned').textContent = unassigned.length;
     document.getElementById('board-unassigned').innerHTML = unassigned.map(x=>{
       const status = taskBoardStatus(x.t, codes[x.i]);
@@ -3353,8 +3393,10 @@
     // ----- khối theo từng người, người có nhiều việc "đang hoạt động" nhất lên đầu -----
     const byPerson = {};
     leaves.forEach(x=>{
-      if(!x.t.assignedTo) return;
-      (byPerson[x.t.assignedTo] = byPerson[x.t.assignedTo] || []).push(x);
+      if(!x.t.assignedTo || !x.t.assignedTo.length) return;
+      x.t.assignedTo.forEach(pid=>{
+        (byPerson[pid] = byPerson[pid] || []).push(x);
+      });
     });
     const people = Object.keys(byPerson).map(pid=>{
       const p = personnel.find(pp=>pp.id===pid);
@@ -3550,7 +3592,7 @@
     confirmCreateTicket, confirmSubmitEvidence, confirmSendScheduleNotifications, deleteQueueTicket, deleteRow, indentRow, lockBaseline,
     openCreateTicket, openQueueDetail, openSubmitModal, outdentRow, rejectQueueDetail, sendScheduleNotifications, switchWorkspace,
     setBuilderView, setQueueFilter, toggleAdminFlag, toggleAdminPermission, toggleCollapse, togglePriority,
-    updateAssignee, updateCreateTicketDefaults, updateDate, updateName,
+    updateCreateTicketDefaults, updateDate, updateName,
     updatePercent, updatePred
   });
 
