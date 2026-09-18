@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1B2530">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Ghi chú công việc — LNG Cà Ná</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F2F3EF; --surface:#FFFFFF; --surface-alt:#EAEBE6;
+    --ink:#1D2226; --ink-muted:#5B6572; --ink-faint:#8A8F87;
+    --steel:#2E6091; --steel-bg:#E7EEF4; --steel-dark:#1B2530;
+    --red:#B23A3A; --red-bg:#FAEAEA;
+    --green:#3C7F5B; --green-bg:#E8F2EC;
+    --border:#DEDFD8; --radius:10px;
+    --font-sans:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-sans);line-height:1.5;min-height:100vh;min-height:100dvh;}
+  header{background:var(--steel-dark);color:#F2F3EF;padding:18px 20px;}
+  header .brand{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#9AA6B0;margin-bottom:4px;}
+  header h1{font-size:17px;margin:0;font-weight:600;}
+  main{max-width:480px;margin:0 auto;padding:20px 16px 40px;}
+
+  .state{display:none;}
+  .state.active{display:block;}
+
+  .center-msg{text-align:center;padding:60px 16px;color:var(--ink-muted);font-size:14px;}
+  .center-msg.err{color:var(--red);}
+
+  .greeting{font-size:15px;color:var(--ink-muted);margin:4px 0 18px;}
+  .greeting b{color:var(--ink);}
+
+  label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-muted);margin:16px 0 6px;}
+  select, textarea, input[type="date"]{
+    width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:var(--radius);
+    font-family:var(--font-sans);font-size:15px;background:var(--surface);color:var(--ink);
+  }
+  textarea{min-height:100px;resize:vertical;}
+  select:focus, textarea:focus, input:focus{outline:2px solid var(--steel);outline-offset:1px;}
+
+  button.submit{
+    width:100%;margin-top:22px;padding:14px;border:none;border-radius:var(--radius);
+    background:var(--steel);color:#fff;font-family:var(--font-sans);font-size:15px;font-weight:600;cursor:pointer;
+  }
+  button.submit:disabled{opacity:.6;cursor:default;}
+  button.submit:not(:disabled):active{background:var(--steel-dark);}
+
+  .banner{border-radius:var(--radius);padding:12px 14px;font-size:13.5px;margin-top:14px;display:none;}
+  .banner.show{display:block;}
+  .banner.ok{background:var(--green-bg);color:var(--green);}
+  .banner.err{background:var(--red-bg);color:var(--red);}
+
+  .hint{font-size:12px;color:var(--ink-faint);margin-top:6px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">LNG Cà Ná</div>
+  <h1>Ghi chú công việc</h1>
+</header>
+
+<main>
+  <div class="state active" id="state-loading">
+    <p class="center-msg">Đang tải...</p>
+  </div>
+
+  <div class="state" id="state-error">
+    <p class="center-msg err" id="error-text">Link không hợp lệ.</p>
+  </div>
+
+  <div class="state" id="state-form">
+    <p class="greeting">Xin chào, <b id="personnel-name"></b>. Chọn việc và ghi lại kết quả hôm nay.</p>
+
+    <label for="f-task">Công việc</label>
+    <select id="f-task"></select>
+
+    <label for="f-desc">Kết quả cụ thể</label>
+    <textarea id="f-desc" placeholder="Đã làm được gì hôm nay..."></textarea>
+
+    <label for="f-due">Hạn hoàn tất (không bắt buộc)</label>
+    <input type="date" id="f-due">
+
+    <label for="f-status">Trạng thái</label>
+    <select id="f-status">
+      <option value="Chưa thực hiện">Chưa thực hiện</option>
+      <option value="Đang thực hiện" selected>Đang thực hiện</option>
+      <option value="Hoàn thành">Hoàn thành</option>
+      <option value="Trễ hạn">Trễ hạn</option>
+    </select>
+
+    <button class="submit" id="btn-submit" onclick="submitLog()">Gửi ghi chú</button>
+    <div class="banner" id="banner"></div>
+    <p class="hint">Ghi chú sẽ lưu vào Nhật ký công việc của việc bạn chọn.</p>
+  </div>
+</main>
+
+<script>
+  const SUPABASE_URL = 'https://cpvqkhxoyvxnmytpelkz.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwdnFraHhveXZ4bm15dHBlbGt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc1ODU1NjAsImV4cCI6MjEwMzE2MTU2MH0.c3hq1ZN79LlUQLYWrey3lLe49aZ9nBC5QO_GEPZlPw4';
+
+  const params = new URLSearchParams(location.search);
+  const token = params.get('t');
+
+  function showState(name){
+    document.querySelectorAll('.state').forEach(s=>s.classList.remove('active'));
+    document.getElementById('state-'+name).classList.add('active');
+  }
+
+  async function callFn(name, opts){
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+      ...opts,
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+        ...(opts && opts.headers ? opts.headers : {})
+      }
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || 'Có lỗi xảy ra');
+    return data;
+  }
+
+  async function init(){
+    if(!token){
+      document.getElementById('error-text').textContent = 'Thiếu link cá nhân. Vào app chính, bấm "Lấy link ghi chú nhanh" để lấy link của bạn.';
+      showState('error');
+      return;
+    }
+    try{
+      const data = await callFn(`quick-log-context?t=${encodeURIComponent(token)}`, { method: 'GET' });
+      document.getElementById('personnel-name').textContent = data.personnelName || '';
+      const sel = document.getElementById('f-task');
+      if(!data.tasks || !data.tasks.length){
+        sel.innerHTML = '<option value="">(bạn chưa được gán việc nào)</option>';
+      } else {
+        sel.innerHTML = data.tasks.map(t=>
+          `<option value="${t.id}">${t.code ? t.code+' · ' : ''}${escapeHtml(t.name)}</option>`
+        ).join('');
+      }
+      showState('form');
+    }catch(e){
+      document.getElementById('error-text').textContent = e.message || 'Link không hợp lệ hoặc đã bị thu hồi.';
+      showState('error');
+    }
+  }
+
+  function escapeHtml(s){
+    const d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+  }
+
+  function showBanner(text, type){
+    const b = document.getElementById('banner');
+    b.textContent = text;
+    b.className = 'banner show ' + type;
+  }
+
+  window.submitLog = async function(){
+    const taskId = document.getElementById('f-task').value;
+    const description = document.getElementById('f-desc').value.trim();
+    if(!taskId){ showBanner('Chọn công việc trước.', 'err'); return; }
+    if(!description){ showBanner('Nhập kết quả cụ thể trước.', 'err'); return; }
+
+    const btn = document.getElementById('btn-submit');
+    btn.disabled = true;
+    btn.textContent = 'Đang gửi...';
+    try{
+      await callFn('quick-log-submit', {
+        method: 'POST',
+        body: JSON.stringify({
+          token,
+          taskId,
+          description,
+          dueDate: document.getElementById('f-due').value || null,
+          status: document.getElementById('f-status').value
+        })
+      });
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2,'0');
+      const mm = String(now.getMinutes()).padStart(2,'0');
+      showBanner(`Đã lưu lúc ${hh}:${mm}.`, 'ok');
+      document.getElementById('f-desc').value = '';
+      document.getElementById('f-due').value = '';
+    }catch(e){
+      showBanner(e.message || 'Gửi thất bại, thử lại.', 'err');
+    }finally{
+      btn.disabled = false;
+      btn.textContent = 'Gửi ghi chú';
+    }
+  };
+
+  init();
+</script>
+</body>
+</html>
