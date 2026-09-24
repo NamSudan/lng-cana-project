@@ -77,8 +77,16 @@
   <div class="state" id="state-form">
     <p class="greeting">Xin chào, <b id="personnel-name"></b>. Chọn việc và ghi lại kết quả hôm nay.</p>
 
+    <label for="f-ws">Phòng ban</label>
+    <select id="f-ws" onchange="onWsChange()"></select>
+
+    <div id="board-wrap">
+      <label for="f-board">Dự án</label>
+      <select id="f-board" onchange="onBoardChange()"></select>
+    </div>
+
     <label for="f-task">Công việc</label>
-    <select id="f-task"></select>
+    <select id="f-task" onchange="rememberPick()"></select>
 
     <label for="f-desc">Kết quả cụ thể</label>
     <textarea id="f-desc" placeholder="Đã làm được gì hôm nay..."></textarea>
@@ -127,6 +135,60 @@
     return data;
   }
 
+  // ---- chọn Phòng ban → Dự án → Công việc; nhớ lựa chọn gần nhất trên máy ----
+  let CTX = { workspaces: [] };
+  const PICK_KEY = 'qlog_pick_' + (token || '');
+  function loadPick(){ try{ return JSON.parse(localStorage.getItem(PICK_KEY) || '{}'); }catch(e){ return {}; } }
+  function rememberPick(){
+    try{
+      localStorage.setItem(PICK_KEY, JSON.stringify({
+        ws: document.getElementById('f-ws').value,
+        board: document.getElementById('f-board').value,
+        task: document.getElementById('f-task').value
+      }));
+    }catch(e){}
+  }
+  const countTasks = ws => ws.boards.reduce((n,b)=>n+b.tasks.length, 0);
+  const boardKey = b => b.id || '_none';
+  function curWs(){ return CTX.workspaces.find(w=>w.id===document.getElementById('f-ws').value); }
+
+  function renderTasks(board, preferTask){
+    const sel = document.getElementById('f-task');
+    if(!board || !board.tasks.length){
+      sel.innerHTML = '<option value="">(chưa được gán việc ở đây)</option>';
+      sel.disabled = true;
+    } else {
+      sel.disabled = false;
+      sel.innerHTML = board.tasks.map(t=>
+        `<option value="${t.id}">${t.code ? t.code+' · ' : ''}${escapeHtml(t.name)}</option>`).join('');
+      if(preferTask && board.tasks.some(t=>t.id===preferTask)) sel.value = preferTask;
+    }
+  }
+  function renderBoards(ws, preferBoard, preferTask){
+    const wrap = document.getElementById('board-wrap');
+    const sel = document.getElementById('f-board');
+    const boards = ws ? ws.boards : [];
+    // phòng ban không chia dự án → ẩn ô Dự án
+    if(boards.length <= 1 && (!boards[0] || !boards[0].name)){
+      wrap.style.display = 'none';
+      sel.innerHTML = boards[0] ? `<option value="${boardKey(boards[0])}"></option>` : '';
+      renderTasks(boards[0], preferTask);
+      return;
+    }
+    wrap.style.display = '';
+    sel.innerHTML = boards.map(b=>
+      `<option value="${boardKey(b)}">${escapeHtml(b.name)}${b.tasks.length ? ' ('+b.tasks.length+')' : ' — chưa có việc'}</option>`).join('');
+    let pick = boards.find(b=>boardKey(b)===preferBoard) || boards.find(b=>b.tasks.length) || boards[0];
+    sel.value = boardKey(pick);
+    renderTasks(pick, preferTask);
+  }
+  window.onWsChange = function(){ renderBoards(curWs()); rememberPick(); };
+  window.onBoardChange = function(){
+    const ws = curWs();
+    renderTasks(ws && ws.boards.find(b=>boardKey(b)===document.getElementById('f-board').value));
+    rememberPick();
+  };
+
   async function init(){
     if(!token){
       document.getElementById('error-text').textContent = 'Thiếu link cá nhân. Vào app chính, bấm "Lấy link ghi chú nhanh" để lấy link của bạn.';
@@ -136,13 +198,19 @@
     try{
       const data = await callFn(`quick-log-context?t=${encodeURIComponent(token)}`, { method: 'GET' });
       document.getElementById('personnel-name').textContent = data.personnelName || '';
-      const sel = document.getElementById('f-task');
-      if(!data.tasks || !data.tasks.length){
-        sel.innerHTML = '<option value="">(bạn chưa được gán việc nào)</option>';
+      CTX.workspaces = data.workspaces || [];
+      const wsSel = document.getElementById('f-ws');
+      if(!CTX.workspaces.length){
+        wsSel.innerHTML = '<option value="">(bạn chưa thuộc phòng ban nào)</option>';
+        wsSel.disabled = true;
+        renderBoards(null);
       } else {
-        sel.innerHTML = data.tasks.map(t=>
-          `<option value="${t.id}">${t.code ? t.code+' · ' : ''}${escapeHtml(t.name)}</option>`
-        ).join('');
+        wsSel.innerHTML = CTX.workspaces.map(w=>
+          `<option value="${w.id}">${escapeHtml(w.name)}${countTasks(w) ? ' ('+countTasks(w)+')' : ' — chưa có việc'}</option>`).join('');
+        const pick = loadPick();
+        const ws = CTX.workspaces.find(w=>w.id===pick.ws) || CTX.workspaces.find(w=>countTasks(w)) || CTX.workspaces[0];
+        wsSel.value = ws.id;
+        renderBoards(ws, pick.board, pick.task);
       }
       showState('form');
     }catch(e){
@@ -187,6 +255,7 @@
       const hh = String(now.getHours()).padStart(2,'0');
       const mm = String(now.getMinutes()).padStart(2,'0');
       showBanner(`Đã lưu lúc ${hh}:${mm}.`, 'ok');
+      rememberPick();
       document.getElementById('f-desc').value = '';
       document.getElementById('f-due').value = '';
     }catch(e){
