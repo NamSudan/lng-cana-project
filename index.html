@@ -305,33 +305,42 @@
 
   /* ---------- gantt ---------- */
   .gantt-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow-x:auto;margin-top:18px;}
-  .gantt-grid{display:grid;grid-template-columns:230px 1fr;min-width:680px;}
-  .gantt-axis-label{padding:11px 16px;font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);}
-  .gantt-axis-track{display:flex;border-bottom:1px solid var(--border);}
-  .gantt-axis-track span{flex:1;text-align:center;font-size:11px;font-family:var(--font-mono);color:var(--ink-faint);padding:11px 0;border-left:1px solid var(--border);}
-  .gantt-axis-track span:first-child{border-left:none;}
-  .gantt-gridlines{
-    grid-column:2;grid-row:2 / -1;position:relative;pointer-events:none;
-    background-image:
-      repeating-linear-gradient(to right, var(--border) 0 1px, transparent 1px 8.3333%),
-      repeating-linear-gradient(to right, transparent 0 8.3333%, rgba(46,96,145,.05) 8.3333% 16.6666%);
-  }
-  .gantt-phase{grid-column:1 / -1;background:var(--surface-alt);padding:7px 16px;font-size:12px;font-weight:600;border-bottom:1px solid var(--border);}
-  .gantt-label{padding:9px 16px;border-bottom:1px solid var(--border);}
+  .gantt-grid{display:grid;grid-template-columns:230px 1fr;min-width:680px;position:relative;}
+  .gantt-axis-label{height:52px;box-sizing:border-box;display:flex;align-items:flex-end;padding:0 16px 8px;font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;left:0;z-index:6;}
+  .gantt-axis-track{position:relative;height:52px;box-sizing:border-box;border-bottom:1px solid var(--border);}
+  .gantt-axis-row{position:absolute;left:0;right:0;height:26px;}
+  .gantt-axis-row.top{top:0;border-bottom:1px solid var(--border);}
+  .gantt-axis-row.bot{top:26px;}
+  .gantt-axis-row span{position:absolute;top:0;height:26px;line-height:26px;text-align:center;font-size:10.5px;font-family:var(--font-mono);color:var(--ink-faint);border-left:1px solid var(--border);box-sizing:border-box;overflow:hidden;white-space:nowrap;}
+  .gantt-axis-row.top span{font-weight:600;color:var(--ink-muted);text-align:left;padding-left:6px;}
+  .gantt-axis-row span.we{color:var(--red);}
+  .gantt-overlay{position:absolute;left:230px;right:0;top:52px;bottom:0;pointer-events:none;z-index:0;}
+  .gantt-overlay .gl{position:absolute;top:0;bottom:0;border-left:1px solid var(--border);}
+  .gantt-overlay .gl.month{border-left-color:#C9CCC4;}
+  .gantt-overlay .wk{position:absolute;top:0;bottom:0;background:rgba(46,96,145,.05);}
+  .gantt-phase-label{padding:7px 16px;font-size:12px;font-weight:600;background:var(--surface-alt);border-bottom:1px solid var(--border);position:sticky;left:0;z-index:5;}
+  .gantt-phase-track{position:relative;background:rgba(234,235,230,.55);border-bottom:1px solid var(--border);min-height:34px;z-index:1;}
+  .gantt-sum{position:absolute;top:13px;height:8px;background:var(--steel-dark);border-radius:2px;opacity:.75;}
+  .gantt-sum::before,.gantt-sum::after{content:'';position:absolute;bottom:-5px;border:4px solid transparent;border-top-color:var(--steel-dark);}
+  .gantt-sum::before{left:-1px;border-left-color:var(--steel-dark);}
+  .gantt-sum::after{right:-1px;border-right-color:var(--steel-dark);}
+  .gantt-label{padding:9px 16px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;left:0;z-index:5;}
   .gantt-label .name{font-size:12.5px;font-weight:500;}
   .gantt-label .meta{font-size:11px;color:var(--ink-faint);font-family:var(--font-mono);margin-top:2px;}
-  .gantt-track{position:relative;border-bottom:1px solid var(--border);min-height:42px;}
-  .gantt-bar{position:absolute;top:9px;height:22px;border-radius:5px;background:var(--steel-bg);border:1px solid var(--steel);overflow:hidden;}
+  .gantt-track{position:relative;border-bottom:1px solid var(--border);min-height:42px;z-index:1;}
+  .gantt-bar{position:absolute;top:9px;height:22px;border-radius:5px;background:var(--steel-bg);border:1px solid var(--steel);overflow:hidden;box-sizing:border-box;min-width:6px;}
   .gantt-bar .fill{height:100%;background:var(--steel);}
   .gantt-bar.critical{border-color:var(--red);background:var(--red-bg);}
   .gantt-bar.critical .fill{background:var(--red);}
   .gantt-bar.done{border-color:var(--green);background:var(--green-bg);}
   .gantt-bar.done .fill{background:var(--green);}
+  .gantt-date{position:absolute;top:0;font-size:10.5px;font-family:var(--font-mono);color:var(--ink-muted);white-space:nowrap;line-height:1;}
+  .gantt-track .gantt-date{top:15px;}
+  .gantt-phase-track .gantt-date{top:12px;}
   .gantt-milestone{position:absolute;top:12px;width:13px;height:13px;background:var(--amber);border-radius:3px;transform:translateX(-50%) rotate(45deg);}
   .gantt-milestone-label{position:absolute;top:9px;font-size:11.5px;font-weight:500;white-space:nowrap;}
-  .gantt-today{grid-column:2;grid-row:2 / -1;position:relative;pointer-events:none;}
-  .gantt-today-line{position:absolute;top:0;bottom:0;border-left:2px dashed var(--ink);}
-  .gantt-today-tag{position:absolute;top:0;left:5px;font-size:10px;background:var(--ink);color:#fff;padding:2px 6px;border-radius:4px;white-space:nowrap;}
+  .gantt-today-line{position:absolute;top:0;bottom:0;border-left:2px dashed var(--ink);pointer-events:none;z-index:3;}
+  .gantt-today-tag{position:absolute;top:2px;left:5px;font-size:10px;background:var(--ink);color:#fff;padding:2px 6px;border-radius:4px;white-space:nowrap;}
   .gantt-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--ink-muted);padding:12px 16px 6px;}
   .gantt-legend span{display:inline-flex;align-items:center;gap:6px;}
   .gantt-legend i{width:14px;height:10px;border-radius:3px;display:inline-block;}
@@ -2098,13 +2107,39 @@
     showToast('Đã đổi tên workspace');
   }
   async function adminDeleteWorkspace(projectId, name){
-    if(!confirm(`Xóa workspace "${name}"? Chỉ xóa được nếu workspace đang rỗng (chưa có công việc/baseline nào).`)) return;
+    // B1: đếm dữ liệu sẽ bị xóa + lấy danh sách file trong Storage
+    const { data: pv, error: e1 } = await supabase.rpc('workspace_delete_preview', { p_project_id: projectId });
+    if(e1){ showToast('Không kiểm tra được dữ liệu: ' + e1.message); return; }
+    const files = (pv && pv.file_paths) || [];
+    const msg =
+      `XÓA VĨNH VIỄN phòng ban "${name}" cùng toàn bộ dữ liệu:\n` +
+      `• ${pv.tasks} công việc / hạng mục\n` +
+      `• ${pv.approvals} phiếu duyệt, ${pv.evidences} lần nộp minh chứng\n` +
+      `• ${files.length} file đính kèm\n` +
+      `• ${pv.baselines} baseline, ${pv.boards} dự án con, ${pv.members} thành viên (chỉ gỡ khỏi phòng ban, không xóa tài khoản)\n\n` +
+      `KHÔNG THỂ HOÀN TÁC. Gõ chính xác tên phòng ban để xác nhận:`;
+    const typed = prompt(msg);
+    if(typed === null) return;
+    if(typed.trim() !== String(name).trim()){ showToast('Tên không khớp — đã hủy xóa.'); return; }
+
+    // B2: xóa dữ liệu trong DB (1 transaction, lỗi thì không mất gì)
     const { error } = await supabase.rpc('delete_workspace', { p_project_id: projectId });
     if(error){ showToast('Không xóa được: ' + error.message); return; }
+
+    // B3: dọn file trong Storage (DB đã xóa xong; lỗi ở đây chỉ để lại file mồ côi)
+    let fileFail = 0;
+    for(let k = 0; k < files.length; k += 100){
+      const chunk = files.slice(k, k + 100);
+      const { error: eF } = await supabase.storage.from('evidence').remove(chunk);
+      if(eF) fileFail += chunk.length;
+    }
+
     await loadWorkspacesAdmin();
     renderAdminWorkspaces();
     await loadProject();
-    showToast('Đã xóa workspace "' + name + '"');
+    showToast(fileFail
+      ? `Đã xóa phòng ban "${name}" — còn ${fileFail} file chưa dọn được trong Storage.`
+      : `Đã xóa phòng ban "${name}" và toàn bộ dữ liệu.`);
   }
   async function adminCreateWorkspace(){
     const name = prompt('Tên workspace mới (ví dụ: Phòng pháp lý đấu thầu):');
@@ -3062,61 +3097,111 @@
     }
     return false;
   }
+  // ---- Gantt: tính theo "chỉ số ngày" (UTC) để không lệch múi giờ ----
+  const DAY_MS = 86400000;
+  function isoToDay(iso){ const [y,m,d] = iso.split('-').map(Number); return Date.UTC(y,m-1,d)/DAY_MS; }
+  function dayToDate(n){ return new Date(n*DAY_MS); }           // đọc bằng getUTC*
+  function localTodayIso(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function fmtDM(iso){ const p=iso.split('-'); return p[2]+'/'+p[1]; }
   function computeTimelineRange(){
-    let starts=[], ends=[];
+    let minS=null, maxE=null;
     const visibleSet = new Set(getVisibleTaskIndices());
     tasks.forEach((t,i)=>{
-      if(!visibleSet.has(i)) return;
-      if(!isParentRow(i)){
-        if(t.start) starts.push(t.start);
-        if(t.end) ends.push(t.end);
-      }
+      if(!visibleSet.has(i) || isParentRow(i)) return;
+      if(t.start){ const v=isoToDay(t.start); if(minS===null||v<minS) minS=v; }
+      if(t.end){ const v=isoToDay(t.end); if(maxE===null||v>maxE) maxE=v; }
     });
-    if(!starts.length) return null;
-    const rs = new Date(starts.sort()[0]+'T00:00:00'); rs.setDate(1);
-    const re = new Date(ends.sort().slice(-1)[0]+'T00:00:00'); re.setMonth(re.getMonth()+1); re.setDate(0);
-    return {start:rs, end:re};
+    if(minS===null) return null;
+    if(maxE===null||maxE<minS) maxE=minS;
+    // mở rộng ra trọn tháng đầu/cuối
+    const s0=dayToDate(minS), e0=dayToDate(maxE);
+    const start = Date.UTC(s0.getUTCFullYear(), s0.getUTCMonth(), 1)/DAY_MS;
+    const endExcl = Date.UTC(e0.getUTCFullYear(), e0.getUTCMonth()+1, 1)/DAY_MS; // ngày đầu tháng kế tiếp
+    const days = endExcl - start;
+    const scale = days<=62 ? 'day' : days<=200 ? 'week' : 'month';
+    return {start, days, scale};
   }
-  function monthLabels(range){
-    const labels=[]; let d = new Date(range.start);
-    while(d<=range.end){ labels.push('Th'+(d.getMonth()+1)+'/'+String(d.getFullYear()).slice(2)); d.setMonth(d.getMonth()+1); }
-    return labels;
-  }
-  function dateToPercent(iso, range){
-    const total = range.end - range.start;
-    const pos = new Date(iso+'T00:00:00') - range.start;
-    return Math.max(0, Math.min(100, pos/total*100));
+  // % vị trí của đầu ngày thứ n trong trục
+  function dayPct(n, range){ return Math.max(0, Math.min(100, (n-range.start)/range.days*100)); }
+  function barHtmlDates(startIso, endIso, leftPct, rightPct){
+    const nd = isoToDay(endIso)-isoToDay(startIso)+1;
+    const txt = `${fmtDM(startIso)} → ${fmtDM(endIso)} · ${nd}d`;
+    return rightPct < 72
+      ? `<span class="gantt-date" style="left:calc(${rightPct}% + 6px)">${txt}</span>`
+      : `<span class="gantt-date" style="right:calc(${100-leftPct}% + 6px)">${txt}</span>`;
   }
   function renderGanttInto(elId){
     const wrap = document.getElementById(elId);
     if(!wrap) return;
     const range = computeTimelineRange();
     if(!range){
-      wrap.innerHTML = `<div class="gantt-empty">Chưa có công việc nào có ngày bắt đầu/kết thúc. Nhập lịch trình ở bảng bên trên.</div>`;
+      wrap.style.minWidth = '';
+      wrap.innerHTML = `<div class="gantt-empty" style="grid-column:1/-1">Chưa có công việc nào có ngày bắt đầu/kết thúc. Nhập lịch trình ở bảng bên trên.</div>`;
       return;
     }
-    const labels = monthLabels(range);
-    const colW = 100/labels.length;
+    // độ rộng tối thiểu theo px/ngày để nhãn ngày không bị chồng; dài quá thì cuộn ngang
+    const pxPerDay = range.scale==='day' ? 28 : range.scale==='week' ? 9 : 3;
+    wrap.style.minWidth = Math.max(680, 230 + range.days*pxPerDay) + 'px';
+
     const codes = computeWbsCodes();
-    const today = new Date().toISOString().slice(0,10);
+    const today = localTodayIso();
     const visibleSet = new Set(getVisibleTaskIndices());
 
-    let html = `<div class="gantt-axis-label">Hạng mục / công việc</div><div class="gantt-axis-track">` +
-      labels.map(l=>`<span>${l}</span>`).join('') + `</div>`;
-    html += `<div class="gantt-gridlines" style="background-image:
-        repeating-linear-gradient(to right, var(--border) 0 1px, transparent 1px ${colW}%),
-        repeating-linear-gradient(to right, transparent 0 ${colW}%, rgba(46,96,145,.05) ${colW}% ${colW*2}%);"></div>`;
+    // ---- trục: tầng trên = tháng, tầng dưới = ngày/tuần ----
+    let top='', bot='', lines='', shade='';
+    for(let n=range.start; n<range.start+range.days; ){
+      const d=dayToDate(n);
+      const next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth()+1, 1)/DAY_MS;
+      const l=dayPct(n,range), w=dayPct(next,range)-l;
+      top += `<span style="left:${l}%;width:${w}%">Th${d.getUTCMonth()+1}/${String(d.getUTCFullYear()).slice(2)}</span>`;
+      if(n>range.start) lines += `<div class="gl month" style="left:${l}%"></div>`;
+      n = next;
+    }
+    if(range.scale==='day'){
+      for(let n=range.start; n<range.start+range.days; n++){
+        const d=dayToDate(n), dow=d.getUTCDay(), we=(dow===0||dow===6);
+        const l=dayPct(n,range), w=100/range.days;
+        bot += `<span class="${we?'we':''}" style="left:${l}%;width:${w}%">${d.getUTCDate()}</span>`;
+        if(d.getUTCDate()!==1 && n>range.start) lines += `<div class="gl" style="left:${l}%"></div>`;
+        if(we) shade += `<div class="wk" style="left:${l}%;width:${w}%"></div>`;
+      }
+    } else if(range.scale==='week'){
+      // mốc tuần: các ngày thứ Hai
+      let n=range.start; while(dayToDate(n).getUTCDay()!==1) n++;
+      for(; n<range.start+range.days; n+=7){
+        const d=dayToDate(n), l=dayPct(n,range), w=Math.min(7, range.start+range.days-n)/range.days*100;
+        bot += `<span style="left:${l}%;width:${w}%">${String(d.getUTCDate()).padStart(2,'0')}</span>`;
+        lines += `<div class="gl" style="left:${l}%"></div>`;
+      }
+    }
+    // scale 'month': tầng dưới để trống, chỉ có vạch tháng
+
+    let html = `<div class="gantt-axis-label">Hạng mục / công việc</div>
+      <div class="gantt-axis-track"><div class="gantt-axis-row top">${top}</div><div class="gantt-axis-row bot">${bot}</div></div>`;
 
     tasks.forEach((t,i)=>{
       if(!visibleSet.has(i)) return;
       if(isHiddenByCollapse(i)) return;
-      const parent = isParentRow(i);
-      if(parent){
+      if(isParentRow(i)){
         const collapsed = collapsedSet.has(t.id);
-        html += `<div class="gantt-phase" style="padding-left:${8+t.level*16}px">
+        // thanh tổng hợp: min start → max end của các công việc con đang hiển thị
+        let mn=null, mx=null;
+        for(let k=i+1; k<tasks.length && tasks[k].level>t.level; k++){
+          if(!visibleSet.has(k) || isParentRow(k)) continue;
+          if(tasks[k].start && (!mn || tasks[k].start<mn)) mn=tasks[k].start;
+          if(tasks[k].end && (!mx || tasks[k].end>mx)) mx=tasks[k].end;
+        }
+        html += `<div class="gantt-phase-label" style="padding-left:${8+t.level*16}px">
           <button class="collapse-btn" onclick="toggleCollapse(${t.id})">${collapsed?'▸':'▾'}</button>
           ${codes[i]} ${escapeHtml(t.name)}<span class="phase-pct">${rollupPercent(i)}%</span>
-        </div>`;
+        </div><div class="gantt-phase-track">`;
+        if(mn && mx && mx>=mn){
+          const l=dayPct(isoToDay(mn),range), r=dayPct(isoToDay(mx)+1,range);
+          const nd=isoToDay(mx)-isoToDay(mn)+1;
+          html += `<div class="gantt-sum" style="left:${l}%;width:${Math.max(r-l,0.3)}%" title="${escapeHtml(t.name)}&#10;${fmtDM(mn)} → ${fmtDM(mx)} (${nd} ngày) · ${rollupPercent(i)}%"></div>`;
+          html += barHtmlDates(mn, mx, l, r);
+        }
+        html += `</div>`;
       } else {
         const pct = getPercent(t);
         let barClass = 'inprogress';
@@ -3124,9 +3209,11 @@
         else if(t.end && today>t.end) barClass='overdue';
         html += `<div class="gantt-label"><div class="name">${escapeHtml(t.name)}${t.priorityFlag?' ★':''}</div><div class="meta">${codes[i]}${personNamesList(t.assignedTo)?' · '+escapeHtml(personNamesList(t.assignedTo)):''}</div></div><div class="gantt-track">`;
         if(t.start && t.end){
-          const left = dateToPercent(t.start,range);
-          const width = Math.max(dateToPercent(t.end,range)-left,1);
-          html += `<div class="gantt-bar ${barClass}" style="left:${left}%;width:${width}%"><div class="fill" style="width:${pct}%"></div></div>`;
+          const sIso = t.end<t.start ? t.end : t.start, eIso = t.end<t.start ? t.start : t.end;
+          const l=dayPct(isoToDay(sIso),range), r=dayPct(isoToDay(eIso)+1,range);
+          const nd=isoToDay(eIso)-isoToDay(sIso)+1;
+          html += `<div class="gantt-bar ${barClass}" style="left:${l}%;width:${Math.max(r-l,0.3)}%" title="${escapeHtml(t.name)}&#10;Bắt đầu: ${fmtDM(sIso)}/${sIso.slice(0,4)}&#10;Kết thúc: ${fmtDM(eIso)}/${eIso.slice(0,4)}&#10;${nd} ngày · ${pct}%"><div class="fill" style="width:${pct}%"></div></div>`;
+          html += barHtmlDates(sIso, eIso, l, r);
         } else {
           html += `<span class="no-date-note">chưa có ngày</span>`;
         }
@@ -3134,9 +3221,12 @@
       }
     });
 
-    if(today >= range.start.toISOString().slice(0,10) && today <= range.end.toISOString().slice(0,10)){
-      const leftToday = dateToPercent(today, range);
-      html += `<div class="gantt-today"><div class="gantt-today-line" style="left:${leftToday}%"><span class="gantt-today-tag">Hôm nay</span></div></div>`;
+    // lớp nền (vạch lưới, cuối tuần) + đường Hôm nay: absolute, không tham gia xếp ô của grid
+    html += `<div class="gantt-overlay">${shade}${lines}</div>`;
+    const tn = isoToDay(today);
+    if(tn>=range.start && tn<range.start+range.days){
+      const p = (tn - range.start + 0.5)/range.days;   // giữa ô ngày hôm nay
+      html += `<div class="gantt-today-line" style="left:calc(230px + (100% - 230px) * ${p.toFixed(5)})"><span class="gantt-today-tag">Hôm nay ${fmtDM(today)}</span></div>`;
     }
     wrap.innerHTML = html;
   }
