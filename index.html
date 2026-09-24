@@ -330,6 +330,7 @@
   .gantt-track{position:relative;border-bottom:1px solid var(--border);min-height:42px;z-index:1;}
   .gantt-bar{position:absolute;top:9px;height:22px;border-radius:5px;background:var(--steel-bg);border:1px solid var(--steel);overflow:hidden;box-sizing:border-box;min-width:6px;}
   .gantt-bar .fill{height:100%;background:var(--steel);}
+  .gantt-bar .pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;font-family:var(--font-mono);color:#fff;text-shadow:0 0 2px rgba(0,0,0,.65),0 0 1px rgba(0,0,0,.65);pointer-events:none;}
   .gantt-bar.critical{border-color:var(--red);background:var(--red-bg);}
   .gantt-bar.critical .fill{background:var(--red);}
   .gantt-bar.done{border-color:var(--green);background:var(--green-bg);}
@@ -476,6 +477,7 @@
       <button class="btn btn-primary" onclick="addRootTask()">+ Thêm hạng mục</button>
       <button class="btn btn-ghost" onclick="lockBaseline()">Chốt baseline</button>
       <button class="btn btn-ghost" id="send-notification-btn" onclick="sendScheduleNotifications()">Gửi tiến độ công việc</button>
+      <button class="btn btn-ghost" onclick="exportMsProjectXml()" title="Xuất tab dự án đang chọn ra file XML mở bằng MS Project">Xuất MS Project</button>
       <div class="builder-view-toggle">
         <button class="active" data-mode="table" onclick="setBuilderView('table')">Xem bảng</button>
         <button data-mode="gantt" onclick="setBuilderView('gantt')">Xem Gantt</button>
@@ -3123,9 +3125,9 @@
   }
   // % vị trí của đầu ngày thứ n trong trục
   function dayPct(n, range){ return Math.max(0, Math.min(100, (n-range.start)/range.days*100)); }
-  function barHtmlDates(startIso, endIso, leftPct, rightPct){
+  function barHtmlDates(startIso, endIso, leftPct, rightPct, showDays=true){
     const nd = isoToDay(endIso)-isoToDay(startIso)+1;
-    const txt = `${fmtDM(startIso)} → ${fmtDM(endIso)} · ${nd}d`;
+    const txt = `${fmtDM(startIso)} → ${fmtDM(endIso)}` + (showDays ? ` · ${nd}d` : '');
     return rightPct < 72
       ? `<span class="gantt-date" style="left:calc(${rightPct}% + 6px)">${txt}</span>`
       : `<span class="gantt-date" style="right:calc(${100-leftPct}% + 6px)">${txt}</span>`;
@@ -3212,8 +3214,8 @@
           const sIso = t.end<t.start ? t.end : t.start, eIso = t.end<t.start ? t.start : t.end;
           const l=dayPct(isoToDay(sIso),range), r=dayPct(isoToDay(eIso)+1,range);
           const nd=isoToDay(eIso)-isoToDay(sIso)+1;
-          html += `<div class="gantt-bar ${barClass}" style="left:${l}%;width:${Math.max(r-l,0.3)}%" title="${escapeHtml(t.name)}&#10;Bắt đầu: ${fmtDM(sIso)}/${sIso.slice(0,4)}&#10;Kết thúc: ${fmtDM(eIso)}/${eIso.slice(0,4)}&#10;${nd} ngày · ${pct}%"><div class="fill" style="width:${pct}%"></div></div>`;
-          html += barHtmlDates(sIso, eIso, l, r);
+          html += `<div class="gantt-bar ${barClass}" style="left:${l}%;width:${Math.max(r-l,0.3)}%" title="${escapeHtml(t.name)}&#10;Bắt đầu: ${fmtDM(sIso)}/${sIso.slice(0,4)}&#10;Kết thúc: ${fmtDM(eIso)}/${eIso.slice(0,4)}&#10;${nd} ngày · ${pct}%"><div class="fill" style="width:${pct}%"></div><span class="pct">${pct}%</span></div>`;
+          html += barHtmlDates(sIso, eIso, l, r, false);
         } else {
           html += `<span class="no-date-note">chưa có ngày</span>`;
         }
@@ -3229,6 +3231,105 @@
       html += `<div class="gantt-today-line" style="left:calc(230px + (100% - 230px) * ${p.toFixed(5)})"><span class="gantt-today-tag">Hôm nay ${fmtDM(today)}</span></div>`;
     }
     wrap.innerHTML = html;
+    wrap.querySelectorAll('.gantt-track').forEach(tr=>{
+      const bar=tr.querySelector('.gantt-bar'), p=bar&&bar.querySelector('.pct'), d=tr.querySelector('.gantt-date');
+      if(bar && p && d && bar.clientWidth < 36){ d.textContent = p.textContent + ' · ' + d.textContent; p.remove(); }
+    });
+  }
+
+  // ---------- Xuất MS Project (MSPDI XML) — theo tab dự án đang chọn ----------
+  // MS Project: File → Open → chọn kiểu "XML Format (*.xml)" → mở file này → Save As .mpp
+  function exportMsProjectXml(){
+    const vis = getVisibleTaskIndices();
+    if(!vis.length){ showToast('Tab này chưa có công việc nào để xuất.'); return; }
+    const codes = computeWbsCodes();
+    const x = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const days = (a,b) => isoToDay(b) - isoToDay(a) + 1;           // số ngày lịch, tính cả 2 đầu
+    const dur = n => `PT${n*8}H0M0S`;                               // lịch 7 ngày/tuần, 8 h/ngày
+    const T0 = 'T08:00:00', T1 = 'T17:00:00';
+
+    const wsName = (currentWorkspaces.find(w=>w.id===PROJECT_ID)||{}).name || 'Workspace';
+    const tabName = currentScheduleProjectId ? ((currentScheduleProjects.find(p=>p.id===currentScheduleProjectId)||{}).name || 'Dự án') : 'Tất cả';
+    const title = `${wsName} - ${tabName}`;
+
+    // khoảng ngày của từng dòng (cha = min/max các con có ngày)
+    const leafDates = [];
+    vis.forEach(i=>{ const t=tasks[i]; if(!isParentRow(i) && (t.start||t.end)) leafDates.push(t.start||t.end, t.end||t.start); });
+    leafDates.sort();
+    const projStart = leafDates[0] || localTodayIso();
+
+    const uidOf = {}; vis.forEach((i,k)=> uidOf[tasks[i].id] = k+1);
+    const resUid = {}; let resList = [];
+    const assigns = [];
+
+    let taskXml = `<Task><UID>0</UID><ID>0</ID><Name>${x(title)}</Name><Type>1</Type><OutlineNumber>0</OutlineNumber><OutlineLevel>0</OutlineLevel><Summary>1</Summary></Task>`;
+    vis.forEach((i,k)=>{
+      const t = tasks[i], uid = k+1, parent = isParentRow(i);
+      let s = t.start || t.end, e = t.end || t.start, noDate = false, note = '';
+      if(parent){
+        let mn=null, mx=null;
+        for(let j=i+1; j<tasks.length && tasks[j].level>t.level; j++){
+          if(isParentRow(j)) continue;
+          const a = tasks[j].start||tasks[j].end, b = tasks[j].end||tasks[j].start;
+          if(a && (!mn||a<mn)) mn=a; if(b && (!mx||b>mx)) mx=b;
+        }
+        s=mn; e=mx;
+      }
+      if(!s){ s=e=projStart; noDate=true; note='Chưa có ngày trên app — MS Project đặt tạm 1 ngày.'; }
+      if(e<s){ const tmp=s; s=e; e=tmp; }
+      const n = days(s,e);
+      const pct = parent ? rollupPercent(i) : getPercent(t);
+      // thứ tự phần tử theo schema MSPDI (xs:sequence)
+      let xml = `<Task><UID>${uid}</UID><ID>${uid}</ID><Name>${x(t.name)}</Name>`+
+        (parent ? '' : `<Manual>1</Manual>`)+
+        `<Type>1</Type><WBS>${x(codes[i])}</WBS><OutlineNumber>${x(codes[i])}</OutlineNumber><OutlineLevel>${t.level+1}</OutlineLevel>`+
+        `<Priority>${t.priorityFlag?700:500}</Priority>`+
+        `<Start>${s}${T0}</Start><Finish>${e}${T1}</Finish><Duration>${dur(n)}</Duration>`+
+        // Manually Scheduled: giữ đúng ngày như trên app, MS Project không tự dời
+        (parent ? '' : `<ManualStart>${s}${T0}</ManualStart><ManualFinish>${e}${T1}</ManualFinish><ManualDuration>${dur(n)}</ManualDuration>`)+
+        `<DurationFormat>7</DurationFormat>`+
+        (noDate ? `<Estimated>1</Estimated>` : '')+
+        `<Summary>${parent?1:0}</Summary><PercentComplete>${pct}</PercentComplete><ConstraintType>0</ConstraintType>`+
+        (note ? `<Notes>${x(note)}</Notes>` : '')+
+        ((t.pred && uidOf[t.pred]) ? `<PredecessorLink><PredecessorUID>${uidOf[t.pred]}</PredecessorUID><Type>1</Type><LinkLag>0</LinkLag><LagFormat>7</LagFormat></PredecessorLink>` : '')+
+        `</Task>`;
+      taskXml += xml;
+
+      if(!parent) (t.assignedTo||[]).forEach(pid=>{
+        if(!resUid[pid]){
+          const p = personnel.find(z=>z.id===pid);
+          resUid[pid] = resList.length+1;
+          resList.push(`<Resource><UID>${resUid[pid]}</UID><ID>${resUid[pid]}</ID><Name>${x(p?.name||'(đã xóa)')}</Name><Type>1</Type><CalendarUID>1</CalendarUID></Resource>`);
+        }
+        assigns.push(`<Assignment><UID>${assigns.length+1}</UID><TaskUID>${uid}</TaskUID><ResourceUID>${resUid[pid]}</ResourceUID><Finish>${e}${T1}</Finish><Start>${s}${T0}</Start><Units>1</Units><Work>${dur(n)}</Work></Assignment>`);
+      });
+    });
+
+    // lịch 7 ngày làm việc, 08:00–12:00 và 13:00–17:00
+    const wt = `<WorkingTimes><WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime></WorkingTimes>`;
+    let weekDays = ''; for(let d=1; d<=7; d++) weekDays += `<WeekDay><DayType>${d}</DayType><DayWorking>1</DayWorking>${wt}</WeekDay>`;
+
+    const out = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+<SaveVersion>14</SaveVersion><Name>${x(title)}.xml</Name><Title>${x(title)}</Title>
+<ScheduleFromStart>1</ScheduleFromStart><StartDate>${projStart}${T0}</StartDate>
+<CalendarUID>1</CalendarUID><DefaultStartTime>08:00:00</DefaultStartTime><DefaultFinishTime>17:00:00</DefaultFinishTime>
+<MinutesPerDay>480</MinutesPerDay><MinutesPerWeek>3360</MinutesPerWeek><DaysPerMonth>30</DaysPerMonth>
+<DurationFormat>7</DurationFormat><WorkFormat>2</WorkFormat><NewTasksEffortDriven>0</NewTasksEffortDriven><NewTaskStartDate>0</NewTaskStartDate>
+<Calendars><Calendar><UID>1</UID><Name>LNG 7 ngay/tuan</Name><IsBaseCalendar>1</IsBaseCalendar><BaseCalendarUID>-1</BaseCalendarUID><WeekDays>${weekDays}</WeekDays></Calendar></Calendars>
+<Tasks>${taskXml}</Tasks>
+<Resources>${resList.join('')}</Resources>
+<Assignments>${assigns.join('')}</Assignments>
+</Project>`;
+
+    const safe = v => String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
+    const blob = new Blob([out], {type:'application/xml'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `TienDo_${safe(wsName)}_${safe(tabName)}_${localTodayIso()}.xml`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+    showToast(`Đã xuất ${vis.length} dòng — mở bằng MS Project: File → Open → XML Format.`);
   }
 
   function renderKpis(){
@@ -3671,6 +3772,7 @@
   // script type="module" không tự đưa hàm ra window như script thường —
   // gán tường minh mọi hàm được HTML gọi qua onclick/onchange.
   Object.assign(window, {
+    exportMsProjectXml,
     addChild, addQueueComment, addRootTask, approveQueueDetail,
     adminAddContractor, adminAddRole, adminAddWorkspaceMember, adminChangeContractorType, adminChangeRole,
     adminConfirmRole, adminCreateWorkspace, adminDeleteContractor, adminDeletePersonnel, adminDeleteRole,
