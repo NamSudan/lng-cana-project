@@ -56,9 +56,17 @@
   .banner.err{background:var(--red-bg);color:var(--red);}
 
   .hint{font-size:12px;color:var(--ink-faint);margin-top:6px;}
+  .mode-tabs{display:flex;background:var(--surface-alt);border-radius:var(--radius);padding:3px;margin:18px 0 4px;}
+  .mode-tabs button{flex:1;border:none;background:transparent;padding:10px;border-radius:8px;font-family:var(--font-sans);font-size:14px;font-weight:600;color:var(--ink-muted);cursor:pointer;}
+  .mode-tabs button.active{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08);}
+  .only-note, .only-ev{display:none;}
+  body.mode-note .only-note, body.mode-ev .only-ev{display:block;}
+  .file-box{border:1px dashed var(--border);border-radius:var(--radius);background:var(--surface);padding:12px;}
+  .file-box input{width:100%;font-size:14px;}
+  .file-info{font-size:12.5px;color:var(--ink-muted);margin-top:6px;}
 </style>
 </head>
-<body>
+<body class="mode-note">
 
 <header>
   <div class="brand">LNG Cà Ná</div>
@@ -88,9 +96,26 @@
     <label for="f-task">Công việc</label>
     <select id="f-task" onchange="rememberPick()"></select>
 
-    <label for="f-desc">Kết quả cụ thể</label>
+    <div class="mode-tabs">
+      <button id="tab-note" class="active" onclick="setMode('note')">Ghi chú</button>
+      <button id="tab-ev" onclick="setMode('ev')">Nộp phiếu duyệt</button>
+    </div>
+
+    <label for="f-desc" id="desc-label">Kết quả cụ thể</label>
     <textarea id="f-desc" placeholder="Đã làm được gì hôm nay..."></textarea>
 
+    <div class="only-ev">
+      <label for="f-approver">Gửi tới người duyệt</label>
+      <select id="f-approver"></select>
+
+      <label for="f-file">File minh chứng (không bắt buộc, tối đa 20 MB)</label>
+      <div class="file-box">
+        <input type="file" id="f-file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.dwg,.zip,.txt,.csv,.mp4,.mov" onchange="onFileChange()">
+        <div class="file-info" id="file-info">Chụp ảnh trực tiếp hoặc chọn file có sẵn.</div>
+      </div>
+    </div>
+
+    <div class="only-note">
     <label for="f-due">Hạn hoàn tất (không bắt buộc)</label>
     <input type="date" id="f-due">
 
@@ -101,10 +126,11 @@
       <option value="Hoàn thành">Hoàn thành</option>
       <option value="Trễ hạn">Trễ hạn</option>
     </select>
+    </div>
 
-    <button class="submit" id="btn-submit" onclick="submitLog()">Gửi ghi chú</button>
+    <button class="submit" id="btn-submit" onclick="submitCurrent()">Gửi ghi chú</button>
     <div class="banner" id="banner"></div>
-    <p class="hint">Ghi chú sẽ lưu vào Nhật ký công việc của việc bạn chọn.</p>
+    <p class="hint" id="bottom-hint">Ghi chú sẽ lưu vào Nhật ký công việc của việc bạn chọn.</p>
   </div>
 </main>
 
@@ -138,6 +164,9 @@
   // ---- chọn Phòng ban → Dự án → Công việc; nhớ lựa chọn gần nhất trên máy ----
   let CTX = { workspaces: [] };
   const PICK_KEY = 'qlog_pick_' + (token || '');
+  const AP_KEY = 'qlog_approver_' + (token || '');
+  const MAX_FILE = 20 * 1024 * 1024;
+  let MODE = 'note';
   function loadPick(){ try{ return JSON.parse(localStorage.getItem(PICK_KEY) || '{}'); }catch(e){ return {}; } }
   function rememberPick(){
     try{
@@ -189,6 +218,81 @@
     rememberPick();
   };
 
+  window.setMode = function(m){
+    MODE = m;
+    document.body.className = 'mode-' + m;
+    document.getElementById('tab-note').classList.toggle('active', m==='note');
+    document.getElementById('tab-ev').classList.toggle('active', m==='ev');
+    document.getElementById('desc-label').textContent = m==='ev' ? 'Ghi chú cho người duyệt' : 'Kết quả cụ thể';
+    document.getElementById('f-desc').placeholder = m==='ev' ? 'Nội dung minh chứng, kết quả đã hoàn thành...' : 'Đã làm được gì hôm nay...';
+    document.getElementById('btn-submit').textContent = m==='ev' ? 'Nộp phiếu duyệt' : 'Gửi ghi chú';
+    document.getElementById('bottom-hint').textContent = m==='ev'
+      ? 'Phiếu sẽ vào hàng chờ duyệt trên app và gửi email cho người duyệt.'
+      : 'Ghi chú sẽ lưu vào Nhật ký công việc của việc bạn chọn.';
+    document.getElementById('banner').className = 'banner';
+  };
+  window.onFileChange = function(){
+    const f = document.getElementById('f-file').files[0];
+    const info = document.getElementById('file-info');
+    if(!f){ info.textContent = 'Chụp ảnh trực tiếp hoặc chọn file có sẵn.'; info.style.color=''; return; }
+    const mb = (f.size/1024/1024).toFixed(2);
+    if(f.size > MAX_FILE){ info.textContent = `${f.name} — ${mb} MB: vượt quá 20 MB`; info.style.color='var(--red)'; }
+    else { info.textContent = `${f.name} — ${mb} MB`; info.style.color=''; }
+  };
+  window.submitCurrent = function(){ return MODE==='ev' ? submitEvidence() : submitLog(); };
+
+  async function submitEvidence(){
+    const taskId = document.getElementById('f-task').value;
+    const approverId = document.getElementById('f-approver').value;
+    const note = document.getElementById('f-desc').value.trim();
+    const file = document.getElementById('f-file').files[0];
+    if(!taskId){ showBanner('Chọn công việc trước.', 'err'); return; }
+    if(!approverId){ showBanner('Chọn người duyệt.', 'err'); return; }
+    if(!note && !file){ showBanner('Nhập ghi chú hoặc đính kèm file minh chứng.', 'err'); return; }
+    if(file && file.size > MAX_FILE){ showBanner('File vượt quá 20 MB.', 'err'); return; }
+
+    const btn = document.getElementById('btn-submit');
+    btn.disabled = true;
+    try{
+      let path = null;
+      if(file){
+        btn.textContent = 'Đang chuẩn bị tải file...';
+        const sign = await callFn('quick-evidence', { method:'POST', body: JSON.stringify({
+          action:'sign', token, taskId, fileName: file.name, fileSize: file.size }) });
+        btn.textContent = 'Đang tải file lên...';
+        const form = new FormData();
+        form.append('cacheControl', '3600');
+        form.append('', file);
+        const up = await fetch(sign.uploadUrl, { method:'PUT', headers:{ 'x-upsert':'false' }, body: form });
+        if(!up.ok){
+          const j = await up.json().catch(()=>({}));
+          throw new Error('Tải file lỗi: ' + (j.message || j.error || ('HTTP '+up.status)));
+        }
+        path = sign.path;
+      }
+      btn.textContent = 'Đang tạo phiếu...';
+      const taskSel = document.getElementById('f-task');
+      const taskCode = (taskSel.options[taskSel.selectedIndex]?.text || '').split(' · ')[0];
+      const res = await callFn('quick-evidence', { method:'POST', body: JSON.stringify({
+        action:'submit', token, taskId, approverId, note, path,
+        fileName: file ? file.name : null, mime: file ? file.type : null, taskCode }) });
+
+      try{ localStorage.setItem(AP_KEY, approverId); }catch(e){}
+      rememberPick();
+      showBanner(`Đã nộp phiếu tới ${res.approverName}.` +
+        (res.emailSent ? ' Đã gửi email thông báo.' : ` Chưa gửi được email (${res.emailError || 'lỗi'}) — phiếu vẫn nằm trong hàng chờ duyệt.`),
+        res.emailSent ? 'ok' : 'err');
+      document.getElementById('f-desc').value = '';
+      document.getElementById('f-file').value = '';
+      onFileChange();
+    }catch(e){
+      showBanner(e.message || 'Nộp phiếu thất bại, thử lại.', 'err');
+    }finally{
+      btn.disabled = false;
+      btn.textContent = 'Nộp phiếu duyệt';
+    }
+  }
+
   async function init(){
     if(!token){
       document.getElementById('error-text').textContent = 'Thiếu link cá nhân. Vào app chính, bấm "Lấy link ghi chú nhanh" để lấy link của bạn.';
@@ -199,6 +303,11 @@
       const data = await callFn(`quick-log-context?t=${encodeURIComponent(token)}`, { method: 'GET' });
       document.getElementById('personnel-name').textContent = data.personnelName || '';
       CTX.workspaces = data.workspaces || [];
+      const apSel = document.getElementById('f-approver');
+      apSel.innerHTML = (data.approvers || []).map(p=>
+        `<option value="${p.id}">${escapeHtml(p.name)}${p.role ? ' — '+escapeHtml(p.role) : ''}</option>`).join('');
+      const lastAp = localStorage.getItem(AP_KEY);
+      if(lastAp && (data.approvers||[]).some(p=>p.id===lastAp)) apSel.value = lastAp;
       const wsSel = document.getElementById('f-ws');
       if(!CTX.workspaces.length){
         wsSel.innerHTML = '<option value="">(bạn chưa thuộc phòng ban nào)</option>';
