@@ -477,6 +477,7 @@
   <button class="view-nav-btn" data-view="worker" id="tab-worker-btn" style="display:none">Điều phối nhân sự</button>
   <button class="view-nav-btn" data-view="worklog">Nhật ký công việc</button>
   <button class="view-nav-btn" data-view="files">Kho file</button>
+  <button class="view-nav-btn" data-view="teams">Phòng ban của tôi</button>
   <button class="view-nav-btn" data-view="admin" id="tab-admin-btn" style="display:none">Quản trị</button>
 </nav>
 
@@ -649,6 +650,16 @@
     </div>
     <div id="files-summary" class="builder-hint" style="margin-bottom:6px"></div>
     <div id="files-list" style="overflow-x:auto"></div>
+  </section>
+
+  <!-- ========== PHÒNG BAN CỦA TÔI: tự quản lý, không cần admin ========== -->
+  <section class="view" id="view-teams">
+    <h2 class="section-title">Phòng ban của tôi</h2>
+    <div class="builder-hint" style="margin-bottom:12px">Ai cũng tạo được phòng ban mới và trở thành trưởng phòng. Trưởng phòng tự đổi tên, thêm/gỡ thành viên, chỉ định thêm trưởng phòng, và sửa tiến độ của phòng mình. Xóa phòng ban chỉ admin làm được.</div>
+    <div class="builder-toolbar" style="margin-bottom:14px">
+      <button class="btn btn-primary" onclick="teamCreate()">+ Tạo phòng ban mới</button>
+    </div>
+    <div id="teams-list"></div>
   </section>
 
   <!-- ========== VIEW 4: QUẢN TRỊ (chỉ admin) ========== -->
@@ -1440,7 +1451,7 @@
   // ---------- điều hướng: nút "Tổng quan" cố định + sidebar chứa các tab còn lại ----------
   const VIEW_LABELS_VI = {
     overview: 'Tổng quan', builder: 'Xây dựng tiến độ', queue: 'Hàng chờ duyệt',
-    worker: 'Điều phối nhân sự', worklog: 'Nhật ký công việc', files: 'Kho file', admin: 'Quản trị'
+    worker: 'Điều phối nhân sự', worklog: 'Nhật ký công việc', files: 'Kho file', teams: 'Phòng ban của tôi', admin: 'Quản trị'
   };
   function activateView(viewName){
     document.querySelectorAll('.view-nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===viewName));
@@ -1450,6 +1461,7 @@
     const label = document.getElementById('current-view-label');
     if(label) label.textContent = viewName==='overview' ? '' : (VIEW_LABELS_VI[viewName] || '');
     if(viewName==='files') loadFilesView();
+    if(viewName==='teams') loadMyTeams();
   }
   function openSidebar(){
     document.getElementById('nav-sidebar').classList.add('open');
@@ -2116,7 +2128,7 @@
             <div class="meta">
               <label style="font-weight:normal;cursor:pointer">
                 <input type="checkbox" ${m.is_workspace_admin?'checked':''} onchange="adminToggleWorkspaceAdmin('${ws.id}','${m.personnel_id}',this.checked)">
-                Admin của workspace này
+                Trưởng phòng ban
               </label>
             </div>
           </div>
@@ -2221,6 +2233,105 @@
     if(error){ showToast('Lỗi: ' + error.message); await loadWorkspacesAdmin(); renderAdminWorkspaces(); return; }
     await loadWorkspacesAdmin();
     renderAdminWorkspaces();
+  }
+
+  // ---------- Phòng ban của tôi (tự phục vụ) ----------
+  async function loadMyTeams(){
+    const el = document.getElementById('teams-list');
+    if(!el) return;
+    el.innerHTML = '<div class="builder-hint">Đang tải...</div>';
+    await loadWorkspacesAdmin();
+    renderMyTeams();
+  }
+  function renderMyTeams(){
+    const el = document.getElementById('teams-list');
+    const me = currentPersonnel.id;
+    const mine = allWorkspaces.filter(ws => (workspaceMembersByProject[ws.id]||[]).some(m=>m.personnel_id===me));
+    if(!mine.length){
+      el.innerHTML = '<div class="baseline-empty">Bạn chưa thuộc phòng ban nào. Bấm "+ Tạo phòng ban mới", hoặc nhờ trưởng phòng ban thêm bạn vào.</div>';
+      return;
+    }
+    el.innerHTML = mine.map(ws=>{
+      const members = workspaceMembersByProject[ws.id] || [];
+      const iManage = currentPersonnel.is_admin || members.some(m=>m.personnel_id===me && m.is_workspace_admin);
+      const memberIds = new Set(members.map(m=>m.personnel_id));
+      const nonMembers = personnel.filter(p=>!memberIds.has(p.id));
+      const sorted = [...members].sort((a,b)=>(b.is_workspace_admin-a.is_workspace_admin) ||
+        (personnel.find(x=>x.id===a.personnel_id)?.name||'').localeCompare(personnel.find(x=>x.id===b.personnel_id)?.name||'','vi'));
+      const rows = sorted.map(m=>{
+        const p = personnel.find(x=>x.id===m.personnel_id);
+        const isMe = m.personnel_id===me;
+        return `<div class="queue-item" style="cursor:default">
+          <div class="info">
+            <div class="name">${escapeHtml(p?.name||'(đã xóa)')}${isMe?' <span style="color:var(--ink-faint);font-weight:normal">(bạn)</span>':''}
+              ${m.is_workspace_admin?'<span class="stg-tag" style="margin-left:6px">Trưởng phòng</span>':''}</div>
+            <div class="meta">${escapeHtml(p?.role||'')}
+              ${iManage ? `<label style="font-weight:normal;cursor:pointer;margin-left:10px">
+                <input type="checkbox" ${m.is_workspace_admin?'checked':''} onchange="teamToggleManager('${ws.id}','${m.personnel_id}',this.checked)"> Trưởng phòng</label>` : ''}
+            </div>
+          </div>
+          ${iManage ? `<button class="mini-btn-text" style="color:var(--red);border-color:var(--red)" onclick="teamRemoveMember('${ws.id}','${m.personnel_id}')">Gỡ</button>` : ''}
+        </div>`;
+      }).join('');
+      const nm = escapeHtml(ws.name).replace(/'/g,"\\'");
+      return `<div class="ws-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <h4>${escapeHtml(ws.name)} <span style="font-weight:normal;color:var(--ink-faint);font-size:12px">· ${members.length} thành viên</span></h4>
+          ${iManage ? `<button class="mini-btn-text" onclick="teamRename('${ws.id}','${nm}')">Đổi tên</button>` : ''}
+        </div>
+        ${rows}
+        ${iManage ? `<div style="display:flex;gap:8px;margin-top:10px">
+          <select id="team-add-${ws.id}" style="flex:1">
+            <option value="">— chọn người thêm vào —</option>
+            ${nonMembers.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}${p.role?' — '+escapeHtml(p.role):''}</option>`).join('')}
+          </select>
+          <button class="btn btn-ghost" style="width:auto;padding:8px 14px" onclick="teamAddMember('${ws.id}')">Thêm</button>
+        </div>` : `<div class="builder-hint" style="margin-top:8px">Chỉ trưởng phòng ban mới thêm/gỡ được thành viên.</div>`}
+      </div>`;
+    }).join('');
+  }
+  async function afterTeamChange(msg){
+    await loadWorkspacesAdmin();
+    renderMyTeams();
+    if(currentPersonnel.is_admin) renderAdminWorkspaces();
+    if(msg) showToast(msg);
+  }
+  async function teamCreate(){
+    const name = prompt('Tên phòng ban mới (ví dụ: Phòng pháp lý đấu thầu):');
+    if(!name || !name.trim()) return;
+    const { error } = await supabase.rpc('create_workspace', { p_name: name.trim() });
+    if(error){ showToast(error.message); return; }
+    await loadProject();   // cập nhật bộ chuyển phòng ban ở đầu trang
+    await afterTeamChange(`Đã tạo phòng ban "${name.trim()}" — bạn là trưởng phòng.`);
+  }
+  async function teamRename(projectId, currentName){
+    const name = prompt('Đổi tên phòng ban:', currentName);
+    if(!name || !name.trim() || name.trim()===currentName) return;
+    const { error } = await supabase.rpc('rename_workspace', { p_project_id: projectId, p_new_name: name.trim() });
+    if(error){ showToast(error.message); return; }
+    await loadProject();
+    await afterTeamChange('Đã đổi tên phòng ban.');
+  }
+  async function teamAddMember(projectId){
+    const pid = document.getElementById('team-add-'+projectId).value;
+    if(!pid){ showToast('Chọn người cần thêm trước.'); return; }
+    const { error } = await supabase.rpc('add_workspace_member', { p_project_id: projectId, p_personnel_id: pid, p_is_workspace_admin: false });
+    if(error){ showToast(error.message); return; }
+    await afterTeamChange('Đã thêm thành viên.');
+  }
+  async function teamRemoveMember(projectId, pid){
+    const self = pid===currentPersonnel.id;
+    if(!confirm(self ? 'Gỡ chính bạn khỏi phòng ban này? Bạn sẽ không xem được dữ liệu của phòng nữa.'
+                     : 'Gỡ người này khỏi phòng ban? Họ sẽ không còn xem được dữ liệu của phòng.')) return;
+    const { error } = await supabase.rpc('remove_workspace_member', { p_project_id: projectId, p_personnel_id: pid });
+    if(error){ showToast(error.message); return; }
+    if(self) await loadProject();
+    await afterTeamChange('Đã gỡ thành viên.');
+  }
+  async function teamToggleManager(projectId, pid, checked){
+    const { error } = await supabase.rpc('add_workspace_member', { p_project_id: projectId, p_personnel_id: pid, p_is_workspace_admin: checked });
+    if(error){ showToast(error.message); }
+    await afterTeamChange(error ? null : (checked ? 'Đã chỉ định trưởng phòng.' : 'Đã bỏ quyền trưởng phòng.'));
   }
 
   // ---------- Quản trị: Vai trò cá nhân ----------
@@ -3975,6 +4086,7 @@
   // script type="module" không tự đưa hàm ra window như script thường —
   // gán tường minh mọi hàm được HTML gọi qua onclick/onchange.
   Object.assign(window, {
+    loadMyTeams, teamCreate, teamRename, teamAddMember, teamRemoveMember, teamToggleManager,
     renderAdminStorage, adminOpenStorageFile, adminDeleteStorageFile, loadFilesView, renderFilesView,
     exportMsProjectXml,
     addChild, addQueueComment, addRootTask, approveQueueDetail,
