@@ -257,6 +257,18 @@
   .ro-date{font-family:var(--font-mono);font-size:12.5px;color:var(--ink-muted);padding:5px 6px;display:inline-block;}
   .col-actions{white-space:nowrap;}
   .mini-btn{width:26px;height:26px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;font-size:13px;color:var(--ink-muted);margin-right:3px;line-height:1;}
+  .stg-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
+  .stg-row{display:grid;grid-template-columns:130px 1fr minmax(240px,auto);gap:12px;align-items:center;margin:6px 0;font-size:12.5px;}
+  .stg-bar{height:10px;background:var(--surface-alt);border-radius:6px;overflow:hidden;}
+  .stg-bar > div{height:100%;background:var(--steel);border-radius:6px;}
+  .stg-bar.warn > div{background:#C88A1E;} .stg-bar.danger > div{background:var(--red);}
+  .stg-num{font-family:var(--font-mono);font-size:12px;color:var(--ink-muted);text-align:right;}
+  .stg-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px;}
+  .stg-table th{text-align:left;font-weight:600;color:var(--ink-muted);padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
+  .stg-table td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .stg-table td.num{font-family:var(--font-mono);text-align:right;white-space:nowrap;}
+  .stg-tag{font-size:10.5px;padding:1px 6px;border-radius:4px;background:var(--surface-alt);color:var(--ink-muted);white-space:nowrap;}
+  .stg-tag.orphan{background:var(--red-bg);color:var(--red);}
   .mini-btn-text{width:auto;height:auto;padding:5px 10px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;font-size:11.5px;color:var(--ink-muted);white-space:nowrap;font-family:var(--font-sans);}
   .mini-btn-text:hover{background:var(--surface-alt);border-color:var(--steel);color:var(--steel);}
   .mini-btn:hover{background:var(--surface-alt);}
@@ -464,6 +476,7 @@
   <button class="view-nav-btn" data-view="queue">Hàng chờ duyệt</button>
   <button class="view-nav-btn" data-view="worker" id="tab-worker-btn" style="display:none">Điều phối nhân sự</button>
   <button class="view-nav-btn" data-view="worklog">Nhật ký công việc</button>
+  <button class="view-nav-btn" data-view="files">Kho file</button>
   <button class="view-nav-btn" data-view="admin" id="tab-admin-btn" style="display:none">Quản trị</button>
 </nav>
 
@@ -613,10 +626,41 @@
     <div id="worklog-list"></div>
   </section>
 
+  <!-- ========== KHO FILE: file minh chứng người dùng được xem ========== -->
+  <section class="view" id="view-files">
+    <h2 class="section-title">Kho file minh chứng</h2>
+    <div class="builder-hint" style="margin-bottom:12px">Hiện các file thuộc phòng ban bạn là thành viên, việc bạn được gán, hoặc phiếu bạn nộp/duyệt.</div>
+    <div class="builder-toolbar" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <input type="search" id="files-search" placeholder="Tìm tên file, công việc, người nộp..." oninput="renderFilesView()" style="min-width:240px;flex:1;max-width:360px">
+      <select id="files-ws" onchange="renderFilesView()" style="max-width:240px"></select>
+      <select id="files-status" onchange="renderFilesView()" style="max-width:170px">
+        <option value="">Mọi trạng thái</option>
+        <option value="pending">Chờ duyệt</option>
+        <option value="approved">Đã duyệt</option>
+        <option value="rejected">Từ chối</option>
+        <option value="orphan">Mồ côi (phiếu đã xóa)</option>
+      </select>
+      <select id="files-sort" onchange="renderFilesView()" style="max-width:150px">
+        <option value="new">Mới nhất</option>
+        <option value="size">Lớn nhất</option>
+        <option value="name">Tên A→Z</option>
+      </select>
+      <button class="btn btn-ghost" onclick="loadFilesView()">↻ Làm mới</button>
+    </div>
+    <div id="files-summary" class="builder-hint" style="margin-bottom:6px"></div>
+    <div id="files-list" style="overflow-x:auto"></div>
+  </section>
+
   <!-- ========== VIEW 4: QUẢN TRỊ (chỉ admin) ========== -->
   <section class="view" id="view-admin">
     <h2 class="section-title">Quản trị nhân sự & quyền</h2>
     <div class="builder-hint" style="margin-bottom:14px">Chỉ admin nhìn thấy và thao tác được ở tab này.</div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <h3 style="font-size:13px;font-weight:600;margin:0">Dung lượng lưu trữ</h3>
+      <button class="mini-btn-text" onclick="renderAdminStorage()">↻ Làm mới</button>
+    </div>
+    <div id="admin-storage" style="margin-bottom:26px"></div>
 
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <h3 style="font-size:13px;font-weight:600;margin:0">Workspace / phòng ban</h3>
@@ -1396,7 +1440,7 @@
   // ---------- điều hướng: nút "Tổng quan" cố định + sidebar chứa các tab còn lại ----------
   const VIEW_LABELS_VI = {
     overview: 'Tổng quan', builder: 'Xây dựng tiến độ', queue: 'Hàng chờ duyệt',
-    worker: 'Điều phối nhân sự', worklog: 'Nhật ký công việc', admin: 'Quản trị'
+    worker: 'Điều phối nhân sự', worklog: 'Nhật ký công việc', files: 'Kho file', admin: 'Quản trị'
   };
   function activateView(viewName){
     document.querySelectorAll('.view-nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===viewName));
@@ -1405,6 +1449,7 @@
     if(target) target.classList.add('active');
     const label = document.getElementById('current-view-label');
     if(label) label.textContent = viewName==='overview' ? '' : (VIEW_LABELS_VI[viewName] || '');
+    if(viewName==='files') loadFilesView();
   }
   function openSidebar(){
     document.getElementById('nav-sidebar').classList.add('open');
@@ -1572,7 +1617,7 @@
         const path = await uploadEvidenceFile(file, taskId);
         attachmentPath = path; attachmentName = file.name;
         const { error: eAtt } = await supabase.from('evidence_attachment')
-          .insert({ evidence_submission_id: es.id, file_url: path, file_type: fileTypeFromMime(file.type, file.name) });
+          .insert({ evidence_submission_id: es.id, file_url: path, file_type: fileTypeFromMime(file.type, file.name), file_name: file.name });
         if(eAtt) throw eAtt;
       }
 
@@ -1841,7 +1886,7 @@
         const path = await uploadEvidenceFile(file, submitModalTaskId);
         attachmentPath = path; attachmentName = file.name;
         const { error: eAtt } = await supabase.from('evidence_attachment')
-          .insert({ evidence_submission_id: es.id, file_url: path, file_type: fileTypeFromMime(file.type, file.name) });
+          .insert({ evidence_submission_id: es.id, file_url: path, file_type: fileTypeFromMime(file.type, file.name), file_name: file.name });
         if(eAtt) throw eAtt;
       }
 
@@ -2132,8 +2177,8 @@
     let fileFail = 0;
     for(let k = 0; k < files.length; k += 100){
       const chunk = files.slice(k, k + 100);
-      const { error: eF } = await supabase.storage.from('evidence').remove(chunk);
-      if(eF) fileFail += chunk.length;
+      const { data: rm, error: eF } = await supabase.storage.from('evidence').remove(chunk);
+      fileFail += eF ? chunk.length : chunk.length - (rm ? rm.length : 0);
     }
 
     await loadWorkspacesAdmin();
@@ -2283,8 +2328,166 @@
     showToast('Đã xóa đơn vị "' + name + '"');
   }
 
+  // ---------- Quản trị: Dung lượng lưu trữ ----------
+  // Hạn mức gói Free của Supabase (theo tài liệu Supabase — kiểm tra lại nếu đổi gói)
+  const STORAGE_LIMIT_BYTES = 1 * 1024 ** 3;   // File storage 1 GB
+  const DB_LIMIT_BYTES      = 500 * 1024 ** 2; // Database 500 MB
+  function fmtBytes(b){
+    b = Number(b)||0;
+    if(b < 1024) return b + ' B';
+    if(b < 1024**2) return (b/1024).toFixed(1) + ' KB';
+    if(b < 1024**3) return (b/1024**2).toFixed(2) + ' MB';
+    return (b/1024**3).toFixed(2) + ' GB';
+  }
+  function stgBar(label, used, limit, extra){
+    const pct = limit ? Math.min(100, used/limit*100) : 0;
+    const cls = pct >= 90 ? 'danger' : pct >= 70 ? 'warn' : '';
+    return `<div class="stg-row"><div>${label}</div>
+      <div class="stg-bar ${cls}"><div style="width:${Math.max(pct, used>0?0.5:0)}%"></div></div>
+      <div class="stg-num">${fmtBytes(used)} / ${fmtBytes(limit)} (${pct.toFixed(pct<1?2:1)}%)${extra||''}</div></div>`;
+  }
+  const STG_STATUS = { pending:'Chờ duyệt', approved:'Đã duyệt', rejected:'Từ chối' };
+  async function renderAdminStorage(){
+    const el = document.getElementById('admin-storage');
+    if(!el) return;
+    el.innerHTML = '<div class="builder-hint">Đang tải...</div>';
+    const { data: u, error } = await supabase.rpc('admin_storage_usage');
+    if(error){ el.innerHTML = `<div class="builder-hint" style="color:var(--red)">Không đọc được dung lượng: ${escapeHtml(error.message)}</div>`; return; }
+
+    let html = `<div class="stg-card">
+      ${stgBar('File minh chứng', u.total_bytes, STORAGE_LIMIT_BYTES, ` · ${u.file_count} file`)}
+      ${stgBar('Cơ sở dữ liệu', u.db_bytes, DB_LIMIT_BYTES)}
+      <div class="builder-hint" style="margin-top:8px">Hạn mức theo gói Free của Supabase. Vàng ≥ 70%, đỏ ≥ 90%.</div>`;
+
+    if(u.by_workspace.length){
+      html += `<div style="font-size:12px;font-weight:600;margin:16px 0 4px">Theo phòng ban</div>
+        <table class="stg-table"><thead><tr><th>Phòng ban</th><th style="text-align:right">Số file</th><th style="text-align:right">Dung lượng</th></tr></thead><tbody>` +
+        u.by_workspace.map(w=>`<tr><td>${escapeHtml(w.name)}</td><td class="num">${w.files}</td><td class="num">${fmtBytes(w.bytes)}</td></tr>`).join('') +
+        `</tbody></table>`;
+    }
+    if(u.top_files.length){
+      html += `<div style="font-size:12px;font-weight:600;margin:16px 0 4px">File lớn nhất (tối đa 30)</div>
+        <div style="overflow-x:auto"><table class="stg-table"><thead><tr>
+          <th>File</th><th>Công việc / phòng ban</th><th>Người nộp</th><th>Trạng thái</th><th style="text-align:right">Dung lượng</th><th></th>
+        </tr></thead><tbody>` +
+        u.top_files.map(f=>{
+          const fname = f.file_name || f.path.split('/').pop();
+          const tag = f.orphan ? '<span class="stg-tag orphan">Mồ côi</span>'
+                               : `<span class="stg-tag">${STG_STATUS[f.approval_status] || f.approval_status || '—'}</span>`;
+          return `<tr>
+            <td><a href="#" onclick="adminOpenStorageFile('${escapeHtml(f.path)}');return false">${escapeHtml(fname)}</a>
+                <div style="color:var(--ink-faint);font-size:11px">${new Date(f.created_at).toLocaleDateString('vi-VN')}</div></td>
+            <td>${f.orphan ? '<span style="color:var(--ink-faint)">— phiếu đã bị xóa —</span>' : escapeHtml(f.task_name||'') + '<div style="color:var(--ink-faint);font-size:11px">'+escapeHtml(f.ws_name||'')+'</div>'}</td>
+            <td>${escapeHtml(f.submitter||'—')}</td>
+            <td>${tag}</td>
+            <td class="num">${fmtBytes(f.bytes)}</td>
+            <td><button class="mini-btn-text" style="color:var(--red)" onclick="adminDeleteStorageFile('${escapeHtml(f.path)}', ${f.orphan})">Xóa file</button></td>
+          </tr>`;
+        }).join('') + `</tbody></table></div>`;
+    } else {
+      html += `<div class="builder-hint" style="margin-top:12px">Chưa có file nào trong kho lưu trữ.</div>`;
+    }
+    el.innerHTML = html + `</div>`;
+  }
+  async function adminOpenStorageFile(path){
+    const { data, error } = await supabase.storage.from('evidence').createSignedUrl(path, 600);
+    if(error || !data){ showToast('Không mở được file: ' + (error?.message||'')); return; }
+    window.open(data.signedUrl, '_blank');
+  }
+  async function adminDeleteStorageFile(path, orphan){
+    const msg = orphan
+      ? 'Xóa file mồ côi này (phiếu gốc đã bị xóa)? Không thể hoàn tác.'
+      : 'Xóa file này khỏi kho lưu trữ?\nPhiếu duyệt vẫn giữ nguyên, chỉ mất file đính kèm. Không thể hoàn tác.';
+    if(!confirm(msg)) return;
+    // xóa file thật trước; thành công mới gỡ bản ghi đính kèm
+    // remove() không báo lỗi khi bị RLS chặn — nó chỉ trả về mảng rỗng, nên phải kiểm tra data
+    const { data: rm, error: e1 } = await supabase.storage.from('evidence').remove([path]);
+    if(e1 || !rm || !rm.length){ showToast('Không xóa được file' + (e1 ? ': '+e1.message : ' (không có quyền hoặc file không còn).')); return; }
+    if(!orphan){
+      const { error: e2 } = await supabase.rpc('admin_delete_evidence_file', { p_path: path });
+      if(e2){ showToast('Đã xóa file nhưng chưa gỡ được bản ghi đính kèm: ' + e2.message); }
+    }
+    showToast('Đã xóa file.');
+    renderAdminStorage();
+    if(document.getElementById('view-files')?.classList.contains('active')) loadFilesView();
+  }
+
+  // ---------- Kho file ----------
+  let filesCache = [];
+  function fileDisplayName(f){
+    if(f.file_name) return f.file_name;
+    const ext = (f.path.split('.').pop()||'').toUpperCase();
+    return `(không rõ tên gốc) .${ext.toLowerCase()}`;
+  }
+  async function loadFilesView(){
+    const list = document.getElementById('files-list');
+    if(!list) return;
+    list.innerHTML = '<div class="builder-hint">Đang tải...</div>';
+    const { data, error } = await supabase.rpc('list_evidence_files');
+    if(error){ list.innerHTML = `<div class="builder-hint" style="color:var(--red)">Không tải được danh sách file: ${escapeHtml(error.message)}</div>`; return; }
+    filesCache = data || [];
+    // bộ lọc phòng ban lấy từ chính danh sách file
+    const wsSel = document.getElementById('files-ws'), cur = wsSel.value;
+    const wsMap = new Map();
+    filesCache.forEach(f=>{ if(f.ws_id) wsMap.set(f.ws_id, f.ws_name); });
+    wsSel.innerHTML = '<option value="">Mọi phòng ban</option>' +
+      [...wsMap].sort((a,b)=>a[1].localeCompare(b[1],'vi')).map(([id,n])=>`<option value="${id}">${escapeHtml(n)}</option>`).join('');
+    if([...wsMap.keys()].includes(cur)) wsSel.value = cur;
+    renderFilesView();
+  }
+  function renderFilesView(){
+    const list = document.getElementById('files-list');
+    const q = (document.getElementById('files-search').value||'').trim().toLowerCase();
+    const ws = document.getElementById('files-ws').value;
+    const st = document.getElementById('files-status').value;
+    const sort = document.getElementById('files-sort').value;
+    let rows = filesCache.filter(f=>{
+      if(ws && f.ws_id!==ws) return false;
+      if(st==='orphan' && !f.orphan) return false;
+      if(st && st!=='orphan' && (f.orphan || f.approval_status!==st)) return false;
+      if(q){
+        const hay = [fileDisplayName(f), f.task_name, f.ws_name, f.submitter, f.approver].join(' ').toLowerCase();
+        if(!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    if(sort==='size') rows.sort((a,b)=>b.bytes-a.bytes);
+    else if(sort==='name') rows.sort((a,b)=>fileDisplayName(a).localeCompare(fileDisplayName(b),'vi'));
+    else rows.sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+
+    const total = rows.reduce((n,f)=>n+Number(f.bytes||0),0);
+    document.getElementById('files-summary').textContent =
+      `${rows.length} file · ${fmtBytes(total)}` + (rows.length!==filesCache.length ? ` (lọc từ ${filesCache.length} file)` : '');
+    if(!rows.length){
+      list.innerHTML = `<div class="builder-hint" style="padding:20px 0">${filesCache.length ? 'Không có file nào khớp bộ lọc.' : 'Chưa có file minh chứng nào bạn được xem.'}</div>`;
+      return;
+    }
+    const isAdmin = !!currentPersonnel.is_admin;
+    list.innerHTML = `<table class="stg-table" style="min-width:860px"><thead><tr>
+        <th>File</th><th>Công việc / phòng ban</th><th>Người nộp</th><th>Người duyệt</th><th>Trạng thái</th><th style="text-align:right">Dung lượng</th><th></th>
+      </tr></thead><tbody>` + rows.map(f=>{
+        const tag = f.orphan ? '<span class="stg-tag orphan">Mồ côi</span>'
+                             : `<span class="stg-tag">${STG_STATUS[f.approval_status] || f.approval_status || '—'}</span>`;
+        const p = escapeHtml(f.path);
+        return `<tr>
+          <td><a href="#" onclick="adminOpenStorageFile('${p}');return false">${escapeHtml(fileDisplayName(f))}</a>
+              <div style="color:var(--ink-faint);font-size:11px">${new Date(f.created_at).toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short'})}</div></td>
+          <td>${f.task_name ? escapeHtml(f.task_name) : '<span style="color:var(--ink-faint)">— công việc đã bị xóa —</span>'}
+              <div style="color:var(--ink-faint);font-size:11px">${escapeHtml(f.ws_name||'')}</div></td>
+          <td>${escapeHtml(f.submitter||'—')}</td>
+          <td>${escapeHtml(f.approver||'—')}</td>
+          <td>${tag}</td>
+          <td class="num">${fmtBytes(f.bytes)}</td>
+          <td style="white-space:nowrap">
+            <button class="mini-btn-text" onclick="adminOpenStorageFile('${p}')">Mở</button>
+            ${isAdmin ? `<button class="mini-btn-text" style="color:var(--red)" onclick="adminDeleteStorageFile('${p}', ${f.orphan})">Xóa</button>` : ''}
+          </td></tr>`;
+      }).join('') + `</tbody></table>`;
+  }
+
   function renderAdmin(){
     if(!currentPersonnel.is_admin) return;
+    renderAdminStorage();
     renderAdminWorkspaces();
     renderAdminRoles();
     renderAdminContractors();
@@ -3772,6 +3975,7 @@
   // script type="module" không tự đưa hàm ra window như script thường —
   // gán tường minh mọi hàm được HTML gọi qua onclick/onchange.
   Object.assign(window, {
+    renderAdminStorage, adminOpenStorageFile, adminDeleteStorageFile, loadFilesView, renderFilesView,
     exportMsProjectXml,
     addChild, addQueueComment, addRootTask, approveQueueDetail,
     adminAddContractor, adminAddRole, adminAddWorkspaceMember, adminChangeContractorType, adminChangeRole,
